@@ -79,6 +79,112 @@ func containsStr(s, sub string) bool {
 	return false
 }
 
+// ForecastDay holds an aggregated daily forecast (derived from 3-hour blocks).
+type ForecastDay struct {
+	TempMinC float64
+	TempMaxC float64
+	TempMinF float64
+	TempMaxF float64
+	Desc     string
+	PrecipPct int // 0–100
+}
+
+type owmForecastResponse struct {
+	City struct {
+		Timezone int `json:"timezone"` // UTC offset in seconds
+	} `json:"city"`
+	List []struct {
+		Dt   int64 `json:"dt"`
+		Main struct {
+			TempMin float64 `json:"temp_min"`
+			TempMax float64 `json:"temp_max"`
+		} `json:"main"`
+		Weather []struct {
+			Description string `json:"description"`
+		} `json:"weather"`
+		Pop float64 `json:"pop"` // probability of precipitation, 0–1
+	} `json:"list"`
+}
+
+func FetchForecast(apiKey, city string) (*ForecastDay, error) {
+	endpoint := fmt.Sprintf(
+		"https://api.openweathermap.org/data/2.5/forecast?q=%s&appid=%s&units=metric",
+		url.QueryEscape(city), apiKey,
+	)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("invalid API key")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("forecast API: %s", resp.Status)
+	}
+
+	var r owmForecastResponse
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		return nil, err
+	}
+
+	return parseTomorrow(r), nil
+}
+
+// parseTomorrow aggregates 3-hour forecast blocks for the next calendar day
+// using the city's UTC offset so the date boundary is local time.
+func parseTomorrow(r owmForecastResponse) *ForecastDay {
+	loc := time.FixedZone("city", r.City.Timezone)
+	tomorrow := time.Now().In(loc).AddDate(0, 0, 1).Format("2006-01-02")
+
+	minC := 999.0
+	maxC := -999.0
+	descCount := map[string]int{}
+	maxPop := 0.0
+
+	for _, entry := range r.List {
+		if time.Unix(entry.Dt, 0).In(loc).Format("2006-01-02") != tomorrow {
+			continue
+		}
+		if entry.Main.TempMin < minC {
+			minC = entry.Main.TempMin
+		}
+		if entry.Main.TempMax > maxC {
+			maxC = entry.Main.TempMax
+		}
+		if len(entry.Weather) > 0 {
+			descCount[entry.Weather[0].Description]++
+		}
+		if entry.Pop > maxPop {
+			maxPop = entry.Pop
+		}
+	}
+
+	if minC == 999.0 {
+		return nil // no data for tomorrow (e.g. near end of forecast window)
+	}
+
+	// Pick the most frequently occurring description.
+	desc := ""
+	best := 0
+	for d, n := range descCount {
+		if n > best {
+			best, desc = n, d
+		}
+	}
+
+	return &ForecastDay{
+		TempMinC:  minC,
+		TempMaxC:  maxC,
+		TempMinF:  cToF(minC),
+		TempMaxF:  cToF(maxC),
+		Desc:      desc,
+		PrecipPct: int(maxPop * 100),
+	}
+}
+
 func FetchWeather(apiKey, city string) (*WeatherData, error) {
 	endpoint := fmt.Sprintf(
 		"https://api.openweathermap.org/data/2.5/weather?q=%s&appid=%s&units=metric",
