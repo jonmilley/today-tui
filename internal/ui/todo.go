@@ -1,0 +1,352 @@
+package ui
+
+import (
+	"fmt"
+	"os/exec"
+	"runtime"
+	"strings"
+	"time"
+
+	"today-tui/internal/api"
+
+	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+)
+
+type fetchTodosMsg struct{}
+type gotTodosMsg struct {
+	issues []api.Issue
+	err    error
+}
+type closedIssueMsg struct {
+	number int
+	err    error
+}
+type createdIssueMsg struct {
+	issue api.Issue
+	err   error
+}
+
+type todoPane struct {
+	gh         *api.GitHubClient
+	issues     []api.Issue
+	selected   int
+	loading    bool
+	err        string
+	lastSync   time.Time
+	viewport   viewport.Model
+	width      int
+	height     int
+	focused    bool
+	status     string
+	creating   bool
+	titleInput textinput.Model
+}
+
+func newTodoPane(gh *api.GitHubClient) todoPane {
+	ti := textinput.New()
+	ti.Placeholder = "Issue title…"
+	ti.CharLimit = 256
+	return todoPane{gh: gh, loading: true, titleInput: ti}
+}
+
+// IsCapturing returns true when the pane owns all keyboard input (create mode).
+func (p todoPane) IsCapturing() bool { return p.creating }
+
+func (p todoPane) Init() tea.Cmd {
+	return func() tea.Msg { return fetchTodosMsg{} }
+}
+
+func fetchIssues(gh *api.GitHubClient) tea.Cmd {
+	return func() tea.Msg {
+		issues, err := gh.GetOpenIssues()
+		return gotTodosMsg{issues: issues, err: err}
+	}
+}
+
+func closeIssue(gh *api.GitHubClient, number int) tea.Cmd {
+	return func() tea.Msg {
+		err := gh.CloseIssue(number)
+		return closedIssueMsg{number: number, err: err}
+	}
+}
+
+func submitCreateIssue(gh *api.GitHubClient, title string) tea.Cmd {
+	return func() tea.Msg {
+		issue, err := gh.CreateIssue(title)
+		if err != nil {
+			return createdIssueMsg{err: err}
+		}
+		return createdIssueMsg{issue: *issue}
+	}
+}
+
+func (p todoPane) Update(msg tea.Msg) (todoPane, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	switch msg := msg.(type) {
+	case fetchTodosMsg:
+		p.loading = true
+		cmds = append(cmds, fetchIssues(p.gh))
+
+	case gotTodosMsg:
+		p.loading = false
+		if msg.err != nil {
+			p.err = msg.err.Error()
+		} else {
+			p.err = ""
+			p.issues = msg.issues
+			p.lastSync = time.Now()
+			if p.selected >= len(p.issues) {
+				p.selected = max(0, len(p.issues)-1)
+			}
+		}
+		p.viewport.SetContent(p.renderContent())
+
+	case closedIssueMsg:
+		if msg.err != nil {
+			p.status = fmt.Sprintf("Error: %s", msg.err)
+		} else {
+			p.status = fmt.Sprintf("Closed #%d", msg.number)
+			for i, iss := range p.issues {
+				if iss.Number == msg.number {
+					p.issues = append(p.issues[:i], p.issues[i+1:]...)
+					break
+				}
+			}
+			if p.selected >= len(p.issues) {
+				p.selected = max(0, len(p.issues)-1)
+			}
+		}
+		p.viewport.SetContent(p.renderContent())
+
+	case createdIssueMsg:
+		p.creating = false
+		p.titleInput.Reset()
+		p.titleInput.Blur()
+		p.updateViewportHeight()
+		if msg.err != nil {
+			p.status = "Error: " + msg.err.Error()
+		} else {
+			p.status = fmt.Sprintf("Created #%d", msg.issue.Number)
+			// Optimistically prepend the new issue
+			p.issues = append([]api.Issue{msg.issue}, p.issues...)
+			p.selected = 0
+		}
+		p.viewport.SetContent(p.renderContent())
+
+	case tea.KeyMsg:
+		if !p.focused {
+			break
+		}
+
+		// --- create mode: all keys go to the input ---
+		if p.creating {
+			switch msg.Type {
+			case tea.KeyEnter:
+				title := strings.TrimSpace(p.titleInput.Value())
+				if title != "" {
+					p.status = "Creating…"
+					cmds = append(cmds, submitCreateIssue(p.gh, title))
+				}
+			case tea.KeyEsc:
+				p.creating = false
+				p.titleInput.Reset()
+				p.titleInput.Blur()
+				p.status = ""
+				p.updateViewportHeight()
+				p.viewport.SetContent(p.renderContent())
+			default:
+				var tiCmd tea.Cmd
+				p.titleInput, tiCmd = p.titleInput.Update(msg)
+				cmds = append(cmds, tiCmd)
+			}
+			return p, tea.Batch(cmds...)
+		}
+
+		// --- normal navigation mode ---
+		switch msg.String() {
+		case "j", "down":
+			if p.selected < len(p.issues)-1 {
+				p.selected++
+				p.viewport.SetContent(p.renderContent())
+				p.ensureVisible()
+			}
+		case "k", "up":
+			if p.selected > 0 {
+				p.selected--
+				p.viewport.SetContent(p.renderContent())
+				p.ensureVisible()
+			}
+		case "enter":
+			if p.selected < len(p.issues) {
+				openBrowser(p.issues[p.selected].HTMLURL)
+			}
+		case "c":
+			if p.selected < len(p.issues) {
+				num := p.issues[p.selected].Number
+				cmds = append(cmds, closeIssue(p.gh, num))
+			}
+		case "n":
+			p.creating = true
+			p.status = ""
+			p.titleInput.Focus()
+			p.updateViewportHeight()
+			p.viewport.SetContent(p.renderContent())
+			cmds = append(cmds, textinput.Blink)
+		case "r":
+			cmds = append(cmds, func() tea.Msg { return fetchTodosMsg{} })
+		}
+	}
+
+	var vpCmd tea.Cmd
+	p.viewport, vpCmd = p.viewport.Update(msg)
+	if vpCmd != nil {
+		cmds = append(cmds, vpCmd)
+	}
+	return p, tea.Batch(cmds...)
+}
+
+func (p *todoPane) updateViewportHeight() {
+	if p.height == 0 {
+		return
+	}
+	// fixed: border(2) + title(1) + sep(1) = 4
+	// normal footer: status(1) + hint(1) = 2
+	// create footer: label(1) + input(1) + hint(1) = 3
+	bottomLines := 2
+	if p.creating {
+		bottomLines = 3
+	}
+	h := p.height - 4 - bottomLines
+	if h < 1 {
+		h = 1
+	}
+	p.viewport.Height = h
+}
+
+func (p *todoPane) SetSize(w, h int) {
+	p.width = w
+	p.height = h
+	p.viewport.Width = w - 4
+	p.updateViewportHeight()
+	p.viewport.SetContent(p.renderContent())
+}
+
+func (p *todoPane) SetFocused(f bool) {
+	p.focused = f
+	if !f && p.creating {
+		// cancel create mode when pane loses focus
+		p.creating = false
+		p.titleInput.Reset()
+		p.titleInput.Blur()
+		p.updateViewportHeight()
+	}
+}
+
+func (p todoPane) renderContent() string {
+	if p.loading {
+		return dimStyle.Render("  Loading issues…")
+	}
+	if p.err != "" {
+		return errStyle.Render("  Error: " + p.err)
+	}
+	if len(p.issues) == 0 {
+		return dimStyle.Render("  No open issues — press 'n' to create one")
+	}
+
+	var sb strings.Builder
+	contentWidth := p.width - 6
+	for i, iss := range p.issues {
+		labels := ""
+		for _, l := range iss.Labels {
+			labels += " [" + l.Name + "]"
+		}
+		title := truncate(iss.Title, contentWidth-len(labels)-6)
+		line := fmt.Sprintf("  #%-4d %s%s", iss.Number, title, labels)
+		line = padRight(line, contentWidth)
+
+		if i == p.selected && p.focused {
+			sb.WriteString(lipgloss.NewStyle().
+				Foreground(colorTodo).Bold(true).
+				Render("▶ "+line[2:]) + "\n")
+		} else if i == p.selected {
+			sb.WriteString(lipgloss.NewStyle().
+				Foreground(colorTodo).
+				Render(line) + "\n")
+		} else {
+			sb.WriteString(line + "\n")
+		}
+	}
+	return sb.String()
+}
+
+func (p *todoPane) ensureVisible() {
+	targetY := p.selected
+	if targetY < p.viewport.YOffset {
+		p.viewport.SetYOffset(targetY)
+	} else if targetY >= p.viewport.YOffset+p.viewport.Height {
+		p.viewport.SetYOffset(targetY - p.viewport.Height + 1)
+	}
+}
+
+func (p todoPane) View() string {
+	accentStyle := lipgloss.NewStyle().Foreground(colorTodo).Bold(true)
+	title := accentStyle.Render("TODO")
+	count := ""
+	if !p.loading && p.err == "" {
+		count = dimStyle.Render(fmt.Sprintf("  %d open", len(p.issues)))
+	}
+	header := lipgloss.JoinHorizontal(lipgloss.Top, title, count)
+	sep := dimStyle.Render(strings.Repeat("─", p.width-4))
+
+	parts := []string{header, sep, p.viewport.View()}
+
+	if p.creating {
+		inputWidth := p.width - 6
+		if inputWidth < 10 {
+			inputWidth = 10
+		}
+		p.titleInput.Width = inputWidth
+		formLabel := lipgloss.NewStyle().Foreground(colorTodo).Bold(true).Render("  New todo:")
+		formInput := "  " + p.titleInput.View()
+		formHint := dimStyle.Render("  Enter: create  Esc: cancel")
+		parts = append(parts, formLabel, formInput, formHint)
+	} else {
+		// Status line: show message when present, blank line otherwise (keeps hint stable)
+		statusLine := ""
+		if p.status != "" {
+			statusLine = dimStyle.Render("  " + p.status)
+		}
+		hint := dimStyle.Render("  n: new  j/k: nav  c: close  Enter: open  r: refresh")
+		parts = append(parts, statusLine, hint)
+	}
+
+	inner := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	return paneStyle(colorTodo, p.focused, p.width, p.height).Render(inner)
+}
+
+func openBrowser(url string) {
+	var cmd string
+	var args []string
+	switch runtime.GOOS {
+	case "linux":
+		cmd, args = "xdg-open", []string{url}
+	case "darwin":
+		cmd, args = "open", []string{url}
+	case "windows":
+		cmd, args = "cmd", []string{"/c", "start", url}
+	default:
+		return
+	}
+	exec.Command(cmd, args...).Start() //nolint:errcheck
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
