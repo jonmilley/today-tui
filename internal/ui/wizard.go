@@ -20,7 +20,6 @@ const (
 	stepGitHubToken
 	stepWeatherKey
 	stepWeatherCity
-	stepAlphaKey
 	stepRSSURL
 	stepDone
 )
@@ -43,7 +42,6 @@ var wizardPrompts = []struct {
 	{"GitHub Token", "Personal access token with 'repo' scope", "ghp_...", true},
 	{"OpenWeatherMap API Key", "Free at openweathermap.org/api", "your-api-key", true},
 	{"Weather City", "City name for weather (e.g. London, New York)", "City Name", false},
-	{"Alpha Vantage API Key (optional)", "Free at alphavantage.co — press Enter to skip", "your-key-or-skip", true},
 	{"RSS Feed URL (optional)", "Full RSS/Atom URL — press Enter to skip", "https://example.com/rss", false},
 }
 
@@ -84,13 +82,12 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 				}
 				// All done
 				cfg := &config.Config{
-					GitHubRepo:      m.inputs[0].Value(),
-					GitHubToken:     m.inputs[1].Value(),
-					WeatherAPIKey:   m.inputs[2].Value(),
-					WeatherCity:     m.inputs[3].Value(),
-					AlphaVantageKey: m.inputs[4].Value(),
-					RSSFeedURL:      m.inputs[5].Value(),
-					Stocks:          config.DefaultStocks(),
+					GitHubRepo:    m.inputs[0].Value(),
+					GitHubToken:   m.inputs[1].Value(),
+					WeatherAPIKey: m.inputs[2].Value(),
+					WeatherCity:   m.inputs[3].Value(),
+					RSSFeedURL:    m.inputs[4].Value(),
+					Stocks:        config.DefaultStocks(),
 				}
 				if err := cfg.Save(); err != nil {
 					m.err = err.Error()

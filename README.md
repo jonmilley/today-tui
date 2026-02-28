@@ -84,8 +84,7 @@ The wizard asks for:
 2. **GitHub token** — personal access token with `repo` scope ([create one here](https://github.com/settings/tokens))
 3. **OpenWeatherMap API key** — free at [openweathermap.org/api](https://openweathermap.org/api) *(new keys activate within 2 hours)*
 4. **Weather city** — city name, e.g. `London` or `New York`
-5. **Alpha Vantage API key** *(optional)* — free at [alphavantage.co](https://www.alphavantage.co)
-6. **RSS feed URL** *(optional)* — any RSS or Atom feed, e.g. `https://hnrss.org/frontpage`
+5. **RSS feed URL** *(optional)* — any RSS or Atom feed, e.g. `https://hnrss.org/frontpage`
 
 ## Configuration
 
@@ -97,7 +96,6 @@ Config is stored at `~/.config/today-tui/config.json`:
   "github_token":     "ghp_...",
   "weather_api_key":  "...",
   "weather_city":     "London",
-  "alpha_vantage_key": "",
   "stocks": ["SPY", "QQQ", "AAPL", "GOOGL", "META", "AMZN", "NFLX"],
   "rss_feed_url":     "https://hnrss.org/frontpage"
 }

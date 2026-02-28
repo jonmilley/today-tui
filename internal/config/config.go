@@ -11,7 +11,6 @@ type Config struct {
 	GitHubToken   string   `json:"github_token"`
 	WeatherAPIKey string   `json:"weather_api_key"`
 	WeatherCity   string   `json:"weather_city"`
-	AlphaVantageKey string `json:"alpha_vantage_key"`
 	Stocks        []string `json:"stocks"`
 	RSSFeedURL    string   `json:"rss_feed_url"`
 }
