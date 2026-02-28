@@ -21,6 +21,7 @@ type gotWeatherMsg struct {
 type weatherPane struct {
 	apiKey   string
 	city     string
+	units    string // "F" or "C"
 	data     *api.WeatherData
 	forecast *api.ForecastDay
 	loading  bool
@@ -31,8 +32,8 @@ type weatherPane struct {
 	focused  bool
 }
 
-func newWeatherPane(apiKey, city string) weatherPane {
-	return weatherPane{apiKey: apiKey, city: city, loading: true}
+func newWeatherPane(apiKey, city, units string) weatherPane {
+	return weatherPane{apiKey: apiKey, city: city, units: units, loading: true}
 }
 
 func (p weatherPane) Init() tea.Cmd {
@@ -117,16 +118,33 @@ func (p weatherPane) View() string {
 	return paneStyle(colorWeather, p.focused, p.width, p.height).Render(inner)
 }
 
+// tempStr formats a temperature pair with the configured unit shown first.
+func (p weatherPane) tempStr(f, c float64) string {
+	if p.units == "C" {
+		return fmt.Sprintf("%.0f°C / %.0f°F", c, f)
+	}
+	return fmt.Sprintf("%.0f°F / %.0f°C", f, c)
+}
+
+// feelsStr formats a feels-like temperature in the configured unit only.
+func (p weatherPane) feelsStr(f, c float64) string {
+	if p.units == "C" {
+		return fmt.Sprintf("%.0f°C", c)
+	}
+	return fmt.Sprintf("%.0f°F", f)
+}
+
 func (p weatherPane) renderCurrent() string {
 	d := p.data
 	divider := dimStyle.Render("  " + strings.Repeat("─", p.width-6))
 	syncLine := dimStyle.Render(fmt.Sprintf("  Updated: %s", p.lastSync.Format("3:04 PM")))
 
+	feelsC := (d.FeelsF - 32) * 5 / 9
 	lines := []string{
 		fmt.Sprintf("  %s, %s", d.City, d.Country),
 		"",
-		lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("  %.0f°F / %.0f°C", d.TempF, d.TempC)),
-		fmt.Sprintf("  Feels like: %.0f°F", d.FeelsF),
+		lipgloss.NewStyle().Bold(true).Render("  " + p.tempStr(d.TempF, d.TempC)),
+		fmt.Sprintf("  Feels like: %s", p.feelsStr(d.FeelsF, feelsC)),
 		divider,
 		"  " + strings.Title(d.Desc),
 		"",
@@ -141,10 +159,7 @@ func (p weatherPane) renderCurrent() string {
 func (p weatherPane) renderForecast() string {
 	accentStyle := lipgloss.NewStyle().Foreground(colorWeather).Bold(true)
 	divider := dimStyle.Render("  " + strings.Repeat("─", p.width-6))
-
-	header := lipgloss.JoinHorizontal(lipgloss.Top,
-		accentStyle.Render("  TOMORROW"),
-	)
+	header := accentStyle.Render("  TOMORROW")
 
 	if p.forecast == nil {
 		return "\n" + header + "\n" + divider + "\n" +
@@ -156,8 +171,8 @@ func (p weatherPane) renderForecast() string {
 		"",
 		header,
 		divider,
-		fmt.Sprintf("  High:   %.0f°F / %.0f°C", f.TempMaxF, f.TempMaxC),
-		fmt.Sprintf("  Low:    %.0f°F / %.0f°C", f.TempMinF, f.TempMinC),
+		fmt.Sprintf("  High:   %s", p.tempStr(f.TempMaxF, f.TempMaxC)),
+		fmt.Sprintf("  Low:    %s", p.tempStr(f.TempMinF, f.TempMinC)),
 		"  " + strings.Title(f.Desc),
 	}
 	if f.PrecipPct > 0 {

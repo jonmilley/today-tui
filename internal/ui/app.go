@@ -60,7 +60,7 @@ func buildDash(cfg *config.Config) App {
 		mode:    modeDash,
 		cfg:     cfg,
 		todo:    newTodoPane(gh),
-		weather: newWeatherPane(cfg.WeatherAPIKey, cfg.WeatherCity),
+		weather: newWeatherPane(cfg.WeatherAPIKey, cfg.WeatherCity, cfg.Units),
 		stocks:  newStocksPane(yc, cfg.Stocks),
 		stats:   newStatsPane(),
 		news:    newNewsPane(cfg.RSSFeedURL),
