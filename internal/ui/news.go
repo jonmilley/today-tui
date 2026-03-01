@@ -161,6 +161,12 @@ func (p *newsPane) SetSize(w, h int) {
 	p.viewport.Width = w - 4
 	p.previewVP.Width = w - 4
 	p.updateSizes()
+	if p.previewing {
+		p.viewport.SetContent(p.renderCompactList())
+		p.previewVP.SetContent(p.renderPreviewContent())
+	} else {
+		p.viewport.SetContent(p.renderList())
+	}
 }
 
 func (p *newsPane) updateSizes() {

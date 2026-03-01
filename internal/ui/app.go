@@ -105,7 +105,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case SetupDoneMsg:
+		w, h, ready := a.width, a.height, a.ready
 		a = buildDash(msg.Cfg)
+		a.width, a.height, a.ready = w, h, ready
+		if ready {
+			a.resizePanes()
+		}
 		return a, a.Init()
 
 	case tea.KeyMsg:
