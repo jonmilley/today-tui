@@ -42,6 +42,8 @@ type todoPane struct {
 	focused    bool
 	status     string
 	creating   bool
+	confirming bool
+	confirmNum int
 	titleInput textinput.Model
 }
 
@@ -52,8 +54,8 @@ func newTodoPane(gh *api.GitHubClient) todoPane {
 	return todoPane{gh: gh, loading: true, titleInput: ti}
 }
 
-// IsCapturing returns true when the pane owns all keyboard input (create mode).
-func (p todoPane) IsCapturing() bool { return p.creating }
+// IsCapturing returns true when the pane owns all keyboard input (create/confirm mode).
+func (p todoPane) IsCapturing() bool { return p.creating || p.confirming }
 
 func (p todoPane) Init() tea.Cmd {
 	return func() tea.Msg { return fetchTodosMsg{} }
@@ -142,6 +144,21 @@ func (p todoPane) Update(msg tea.Msg) (todoPane, tea.Cmd) {
 			break
 		}
 
+		// --- confirm close mode ---
+		if p.confirming {
+			switch msg.String() {
+			case "y", "Y":
+				p.confirming = false
+				p.status = "Closing…"
+				cmds = append(cmds, closeIssue(p.gh, p.confirmNum))
+			case "n", "N", "esc":
+				p.confirming = false
+				p.status = ""
+				p.viewport.SetContent(p.renderContent())
+			}
+			return p, tea.Batch(cmds...)
+		}
+
 		// --- create mode: all keys go to the input ---
 		if p.creating {
 			switch msg.Type {
@@ -186,8 +203,10 @@ func (p todoPane) Update(msg tea.Msg) (todoPane, tea.Cmd) {
 			}
 		case "c":
 			if p.selected < len(p.issues) {
-				num := p.issues[p.selected].Number
-				cmds = append(cmds, closeIssue(p.gh, num))
+				p.confirming = true
+				p.confirmNum = p.issues[p.selected].Number
+				p.status = fmt.Sprintf("Close #%d?", p.confirmNum)
+				p.viewport.SetContent(p.renderContent())
 			}
 		case "n":
 			p.creating = true
@@ -237,12 +256,17 @@ func (p *todoPane) SetSize(w, h int) {
 
 func (p *todoPane) SetFocused(f bool) {
 	p.focused = f
-	if !f && p.creating {
-		// cancel create mode when pane loses focus
-		p.creating = false
-		p.titleInput.Reset()
-		p.titleInput.Blur()
-		p.updateViewportHeight()
+	if !f {
+		if p.creating {
+			p.creating = false
+			p.titleInput.Reset()
+			p.titleInput.Blur()
+			p.updateViewportHeight()
+		}
+		if p.confirming {
+			p.confirming = false
+			p.status = ""
+		}
 	}
 }
 
@@ -321,6 +345,9 @@ func (p todoPane) View() string {
 			statusLine = dimStyle.Render("  " + p.status)
 		}
 		hint := dimStyle.Render("  n: new  j/k: nav  c: close  Enter: open  r: refresh")
+		if p.confirming {
+			hint = dimStyle.Render("  y: yes  n/Esc: cancel")
+		}
 		parts = append(parts, statusLine, hint)
 	}
 
