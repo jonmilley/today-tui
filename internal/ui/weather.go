@@ -111,7 +111,15 @@ func (p weatherPane) View() string {
 		body = errStyle.Render("  Error: "+truncate(p.err, p.width-6)) +
 			"\n\n" + dimStyle.Render("  Run with --reconfigure to re-enter\n  your API key.")
 	default:
-		body = p.renderCurrent() + "\n" + p.renderForecast()
+		bodyH := p.height - 4 // border(2) + title(1) + sep(1)
+		switch {
+		case bodyH >= 18:
+			body = p.renderCurrent() + "\n" + p.renderForecast()
+		case bodyH >= 11:
+			body = p.renderCurrent()
+		default:
+			body = p.renderCondensed(bodyH)
+		}
 	}
 
 	inner := lipgloss.JoinVertical(lipgloss.Left, title, sep, body)
@@ -153,6 +161,38 @@ func (p weatherPane) renderCurrent() string {
 		"",
 		syncLine,
 	}
+	return strings.Join(lines, "\n")
+}
+
+// renderCondensed squeezes weather into fewer lines for short panes.
+// bodyH is the number of lines available for body content.
+func (p weatherPane) renderCondensed(bodyH int) string {
+	d := p.data
+	feelsC := (d.FeelsF - 32) * 5 / 9
+	syncLine := dimStyle.Render(fmt.Sprintf("  Updated: %s", p.lastSync.Format("3:04 PM")))
+
+	lines := []string{
+		fmt.Sprintf("  %s, %s", d.City, d.Country),
+		fmt.Sprintf("  %s  ·  Feels %s", p.tempStr(d.TempF, d.TempC), p.feelsStr(d.FeelsF, feelsC)),
+		"  " + strings.Title(d.Desc),
+		fmt.Sprintf("  Hum %d%%  ·  Wind %.0f mph %s", d.Humidity, d.WindMph, d.WindDir),
+		syncLine,
+	}
+
+	if p.forecast != nil && bodyH >= 7 {
+		f := p.forecast
+		tomorrowLine := truncate(
+			fmt.Sprintf("  Tomorrow: Hi %s  Lo %s  %s",
+				p.feelsStr(f.TempMaxF, f.TempMaxC),
+				p.feelsStr(f.TempMinF, f.TempMinC),
+				strings.Title(f.Desc),
+			), p.width-4)
+		lines = append(lines, "", tomorrowLine)
+		if f.PrecipPct > 0 && bodyH >= 8 {
+			lines = append(lines, fmt.Sprintf("  Precip: %d%%", f.PrecipPct))
+		}
+	}
+
 	return strings.Join(lines, "\n")
 }
 
