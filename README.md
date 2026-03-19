@@ -49,6 +49,11 @@ A terminal dashboard that puts everything you need to start your day in one plac
 brew install jonmilley/tap/today
 ```
 
+> **macOS Gatekeeper warning:** Because the binary isn't yet code-signed with an Apple Developer certificate, macOS may block it on first run. To unblock:
+> ```bash
+> xattr -d com.apple.quarantine $(which today)
+> ```
+
 ### Build from source
 
 Requires **Go 1.24+**.
