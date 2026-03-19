@@ -126,6 +126,17 @@ func (p weatherPane) View() string {
 	return paneStyle(colorWeather, p.focused, p.width, p.height).Render(inner)
 }
 
+// titleWords capitalizes the first letter of each word, replacing the deprecated strings.Title.
+func titleWords(s string) string {
+	words := strings.Fields(s)
+	for i, w := range words {
+		if len(w) > 0 {
+			words[i] = strings.ToUpper(w[:1]) + w[1:]
+		}
+	}
+	return strings.Join(words, " ")
+}
+
 // tempStr formats a temperature pair with the configured unit shown first.
 func (p weatherPane) tempStr(f, c float64) string {
 	if p.units == "C" {
@@ -154,7 +165,7 @@ func (p weatherPane) renderCurrent() string {
 		lipgloss.NewStyle().Bold(true).Render("  " + p.tempStr(d.TempF, d.TempC)),
 		fmt.Sprintf("  Feels like: %s", p.feelsStr(d.FeelsF, feelsC)),
 		divider,
-		"  " + strings.Title(d.Desc),
+		"  " + titleWords(d.Desc),
 		"",
 		fmt.Sprintf("  Humidity:  %d%%", d.Humidity),
 		fmt.Sprintf("  Wind:      %.0f mph %s", d.WindMph, d.WindDir),
@@ -174,7 +185,7 @@ func (p weatherPane) renderCondensed(bodyH int) string {
 	lines := []string{
 		fmt.Sprintf("  %s, %s", d.City, d.Country),
 		fmt.Sprintf("  %s  ·  Feels %s", p.tempStr(d.TempF, d.TempC), p.feelsStr(d.FeelsF, feelsC)),
-		"  " + strings.Title(d.Desc),
+		"  " + titleWords(d.Desc),
 		fmt.Sprintf("  Hum %d%%  ·  Wind %.0f mph %s", d.Humidity, d.WindMph, d.WindDir),
 		syncLine,
 	}
@@ -185,7 +196,7 @@ func (p weatherPane) renderCondensed(bodyH int) string {
 			fmt.Sprintf("  Tomorrow: Hi %s  Lo %s  %s",
 				p.feelsStr(f.TempMaxF, f.TempMaxC),
 				p.feelsStr(f.TempMinF, f.TempMinC),
-				strings.Title(f.Desc),
+				titleWords(f.Desc),
 			), p.width-4)
 		lines = append(lines, "", tomorrowLine)
 		if f.PrecipPct > 0 && bodyH >= 8 {
@@ -213,7 +224,7 @@ func (p weatherPane) renderForecast() string {
 		divider,
 		fmt.Sprintf("  High:   %s", p.tempStr(f.TempMaxF, f.TempMaxC)),
 		fmt.Sprintf("  Low:    %s", p.tempStr(f.TempMinF, f.TempMinC)),
-		"  " + strings.Title(f.Desc),
+		"  " + titleWords(f.Desc),
 	}
 	if f.PrecipPct > 0 {
 		lines = append(lines, fmt.Sprintf("  Precip: %d%%", f.PrecipPct))

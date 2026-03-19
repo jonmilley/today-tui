@@ -210,6 +210,17 @@ func (p *newsPane) SetFocused(f bool) {
 	}
 }
 
+// formatNewsTitle renders a news item title with selection/focus highlighting.
+func formatNewsTitle(title string, selected, focused bool) string {
+	if selected && focused {
+		return lipgloss.NewStyle().Foreground(colorNews).Bold(true).Render("▶ " + title)
+	}
+	if selected {
+		return lipgloss.NewStyle().Foreground(colorNews).Render("  " + title)
+	}
+	return "  " + title
+}
+
 // renderList renders the full item list (title + age + blank line per item).
 func (p newsPane) renderList() string {
 	if p.width == 0 {
@@ -233,16 +244,7 @@ func (p newsPane) renderList() string {
 	for i, item := range p.items {
 		title := truncate(item.Title, contentWidth-2)
 		ageStr := formatAge(time.Since(item.Published))
-
-		var titleLine string
-		if i == p.selected && p.focused {
-			titleLine = lipgloss.NewStyle().Foreground(colorNews).Bold(true).Render("▶ " + title)
-		} else if i == p.selected {
-			titleLine = lipgloss.NewStyle().Foreground(colorNews).Render("  " + title)
-		} else {
-			titleLine = "  " + title
-		}
-		sb.WriteString(titleLine + "\n")
+		sb.WriteString(formatNewsTitle(title, i == p.selected, p.focused) + "\n")
 		sb.WriteString(dimStyle.Render(fmt.Sprintf("    %s", ageStr)) + "\n")
 		sb.WriteString("\n")
 	}
@@ -258,15 +260,7 @@ func (p newsPane) renderCompactList() string {
 	var sb strings.Builder
 	for i, item := range p.items {
 		title := truncate(item.Title, contentWidth-2)
-		var line string
-		if i == p.selected && p.focused {
-			line = lipgloss.NewStyle().Foreground(colorNews).Bold(true).Render("▶ " + title)
-		} else if i == p.selected {
-			line = lipgloss.NewStyle().Foreground(colorNews).Render("  " + title)
-		} else {
-			line = "  " + title
-		}
-		sb.WriteString(line + "\n")
+		sb.WriteString(formatNewsTitle(title, i == p.selected, p.focused) + "\n")
 	}
 	return sb.String()
 }
@@ -279,7 +273,7 @@ func (p newsPane) renderPreviewContent() string {
 	item := p.items[p.selected]
 
 	titleStyle := lipgloss.NewStyle().Foreground(colorNews).Bold(true).Width(p.width - 6)
-	metaStyle := dimStyle.Copy().Width(p.width - 6)
+	metaStyle := dimStyle.Width(p.width - 6)
 	bodyStyle := lipgloss.NewStyle().Width(p.width - 6)
 
 	heading := titleStyle.Render(item.Title)

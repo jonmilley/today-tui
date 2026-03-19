@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
+
+var weatherClient = &http.Client{Timeout: 10 * time.Second}
 
 type WeatherData struct {
 	City    string
@@ -51,32 +54,19 @@ func cToF(c float64) float64 { return c*9/5 + 32 }
 
 func weatherIcon(desc string) string {
 	switch {
-	case contains(desc, "clear"):
+	case strings.Contains(desc, "clear"):
 		return "  \\O/  "
-	case contains(desc, "cloud"):
+	case strings.Contains(desc, "cloud"):
 		return "  ~~~  "
-	case contains(desc, "rain"), contains(desc, "drizzle"):
+	case strings.Contains(desc, "rain"), strings.Contains(desc, "drizzle"):
 		return "  ///  "
-	case contains(desc, "snow"):
+	case strings.Contains(desc, "snow"):
 		return "  ***  "
-	case contains(desc, "thunder"):
+	case strings.Contains(desc, "thunder"):
 		return "  !!!  "
 	default:
 		return "  ---  "
 	}
-}
-
-func contains(s, sub string) bool {
-	return len(s) >= len(sub) && (s == sub || len(s) > 0 && containsStr(s, sub))
-}
-
-func containsStr(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }
 
 // ForecastDay holds an aggregated daily forecast (derived from 3-hour blocks).
@@ -111,8 +101,7 @@ func FetchForecast(apiKey, city string) (*ForecastDay, error) {
 		"https://api.openweathermap.org/data/2.5/forecast?q=%s&appid=%s&units=metric",
 		url.QueryEscape(city), apiKey,
 	)
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(endpoint)
+	resp, err := weatherClient.Get(endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -190,8 +179,7 @@ func FetchWeather(apiKey, city string) (*WeatherData, error) {
 		"https://api.openweathermap.org/data/2.5/weather?q=%s&appid=%s&units=metric",
 		url.QueryEscape(city), apiKey,
 	)
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(endpoint)
+	resp, err := weatherClient.Get(endpoint)
 	if err != nil {
 		return nil, err
 	}

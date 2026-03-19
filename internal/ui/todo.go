@@ -371,9 +371,3 @@ func openBrowser(url string) {
 	exec.Command(cmd, args...).Start() //nolint:errcheck
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

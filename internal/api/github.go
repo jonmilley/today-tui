@@ -21,12 +21,17 @@ type Issue struct {
 }
 
 type GitHubClient struct {
-	token string
-	repo  string
+	token  string
+	repo   string
+	client *http.Client
 }
 
 func NewGitHubClient(token, repo string) *GitHubClient {
-	return &GitHubClient{token: token, repo: repo}
+	return &GitHubClient{
+		token:  token,
+		repo:   repo,
+		client: &http.Client{Timeout: 10 * time.Second},
+	}
 }
 
 func (c *GitHubClient) GetOpenIssues() ([]Issue, error) {
@@ -39,8 +44,7 @@ func (c *GitHubClient) GetOpenIssues() ([]Issue, error) {
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 	req.Header.Set("User-Agent", "today-tui/1.0")
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -68,8 +72,7 @@ func (c *GitHubClient) CreateIssue(title string) (*Issue, error) {
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 	req.Header.Set("User-Agent", "today-tui/1.0")
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -95,8 +98,7 @@ func (c *GitHubClient) CloseIssue(number int) error {
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 	req.Header.Set("User-Agent", "today-tui/1.0")
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return err
 	}

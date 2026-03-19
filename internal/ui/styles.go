@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 var (
 	colorTodo    = lipgloss.Color("69")  // blue
@@ -39,16 +43,7 @@ func progressBar(pct float64, width int) string {
 	if filled > width {
 		filled = width
 	}
-	empty := width - filled
-
-	bar := ""
-	for i := 0; i < filled; i++ {
-		bar += "█"
-	}
-	for i := 0; i < empty; i++ {
-		bar += "░"
-	}
-	return bar
+	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
 }
 
 func truncate(s string, max int) string {
@@ -65,8 +60,8 @@ func truncate(s string, max int) string {
 }
 
 func padRight(s string, width int) string {
-	for len(s) < width {
-		s += " "
+	if len(s) >= width {
+		return s
 	}
-	return s
+	return s + strings.Repeat(" ", width-len(s))
 }

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"time"
 
 	"today-tui/internal/api"
@@ -323,11 +324,7 @@ func (a *App) ensureFocusVisible() {
 
 func (a *App) setFocus(p int) {
 	a.focused = p
-	a.todo.SetFocused(p == paneTodo)
-	a.weather.SetFocused(p == paneWeather)
-	a.stocks.SetFocused(p == paneStocks)
-	a.stats.SetFocused(p == paneStats)
-	a.news.SetFocused(p == paneNews)
+	a.syncFocus()
 }
 
 func (a *App) syncFocus() {
@@ -498,12 +495,8 @@ func buildStatusBar(w, focused int) string {
 	if gap < 0 {
 		gap = 0
 	}
-	spacer := ""
-	for i := 0; i < gap; i++ {
-		spacer += " "
-	}
 	return lipgloss.NewStyle().
 		Background(lipgloss.Color("235")).
 		Width(w).
-		Render(left + spacer + right)
+		Render(left + strings.Repeat(" ", gap) + right)
 }

@@ -1,7 +1,7 @@
 build:
-	go build -o today .
+	go build -ldflags="-s -w" -trimpath -o today .
 
 install:
-	go build -o ~/bin/today .
+	go build -ldflags="-s -w" -trimpath -o ~/bin/today .
 
 .PHONY: build install

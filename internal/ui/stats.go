@@ -184,7 +184,7 @@ func (p statsPane) renderContent() string {
 		fmt.Sprintf("  CPU   [%s] %.1f%%", cpuBar, p.last.cpu),
 	}
 	if p.last.cpuTempOK {
-		lines = append(lines, cpuTempLine(p.last.cpuTemp, p.last.cpuTempOK))
+		lines = append(lines, cpuTempLine(p.last.cpuTemp))
 	}
 	lines = append(lines,
 		fmt.Sprintf("  MEM   [%s] %.1f%%", memBar, p.last.memPct),
@@ -199,10 +199,7 @@ func (p statsPane) renderContent() string {
 	return strings.Join(lines, "\n")
 }
 
-func cpuTempLine(temp float64, ok bool) string {
-	if !ok {
-		return dimStyle.Render("  TEMP  n/a")
-	}
+func cpuTempLine(temp float64) string {
 	tempF := temp*9/5 + 32
 	var color lipgloss.Color
 	switch {
