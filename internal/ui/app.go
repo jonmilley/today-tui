@@ -13,7 +13,8 @@ import (
 type appMode int
 
 const (
-	modeSetup appMode = iota
+	modeSplash appMode = iota
+	modeSetup
 	modeDash
 	modeConfig
 )
@@ -32,6 +33,7 @@ type refreshTickMsg struct{}
 
 type App struct {
 	mode         appMode
+	splash       splashModel
 	wizard       wizardModel
 	configEditor configEditor
 	cfg          *config.Config
@@ -49,10 +51,12 @@ type App struct {
 }
 
 func NewApp(cfg *config.Config) App {
-	if cfg == nil {
-		return App{mode: modeSetup, wizard: newWizard()}
+	return App{
+		mode:   modeSplash,
+		splash: newSplash(),
+		wizard: newWizard(),
+		cfg:    cfg,
 	}
-	return buildDash(cfg)
 }
 
 func buildDash(cfg *config.Config) App {
@@ -71,9 +75,10 @@ func buildDash(cfg *config.Config) App {
 }
 
 func (a App) Init() tea.Cmd {
-	if a.mode == modeSetup {
-		return a.wizard.Init()
-	}
+	return a.splash.Init()
+}
+
+func (a App) initPanes() tea.Cmd {
 	return tea.Batch(
 		a.todo.Init(),
 		a.weather.Init(),
@@ -98,16 +103,35 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.width = msg.Width
 		a.height = msg.Height
 		a.ready = true
-		if a.mode == modeSetup {
+		switch a.mode {
+		case modeSplash:
+			a.splash.width = msg.Width
+			a.splash.height = msg.Height
+		case modeSetup:
 			a.wizard.width = msg.Width
 			a.wizard.height = msg.Height
-		} else if a.mode == modeConfig {
+		case modeConfig:
 			a.configEditor.width = msg.Width
 			a.configEditor.height = msg.Height
-		} else {
+		default:
 			a.resizePanes()
 		}
 		return a, nil
+
+	case splashDoneMsg:
+		if a.cfg == nil {
+			a.mode = modeSetup
+			a.wizard.width = a.width
+			a.wizard.height = a.height
+			return a, a.wizard.Init()
+		}
+		w, h, ready := a.width, a.height, a.ready
+		a = buildDash(a.cfg)
+		a.width, a.height, a.ready = w, h, ready
+		if ready {
+			a.resizePanes()
+		}
+		return a, a.initPanes()
 
 	case SetupDoneMsg:
 		w, h, ready := a.width, a.height, a.ready
@@ -116,7 +140,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if ready {
 			a.resizePanes()
 		}
-		return a, a.Init()
+		return a, a.initPanes()
 
 	case configClosedMsg:
 		a.cfg.Panels = msg.panels
@@ -127,6 +151,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case tea.KeyMsg:
+		if a.mode == modeSplash {
+			if msg.String() == "q" || msg.String() == "ctrl+c" {
+				return a, tea.Quit
+			}
+			return a, func() tea.Msg { return splashDoneMsg{} }
+		}
 		if a.mode == modeSetup {
 			var wizCmd tea.Cmd
 			a.wizard, wizCmd = a.wizard.Update(msg)
@@ -159,6 +189,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, a.dispatchKey(msg))
 		}
 		return a, tea.Batch(cmds...)
+	}
+
+	if a.mode == modeSplash {
+		var cmd tea.Cmd
+		a.splash, cmd = a.splash.Update(msg)
+		return a, cmd
 	}
 
 	if a.mode == modeSetup {
@@ -403,6 +439,9 @@ func (a App) buildRow(panes []int) string {
 func (a App) View() string {
 	if !a.ready {
 		return "Initializing..."
+	}
+	if a.mode == modeSplash {
+		return a.splash.View()
 	}
 	if a.mode == modeSetup {
 		return a.wizard.View()
