@@ -187,11 +187,11 @@ func (p statsPane) renderContent() string {
 		fmt.Sprintf("         %.1f / %.1f GB", p.last.memGB, p.last.memTot),
 		fmt.Sprintf("  DISK  [%s] %.1f%%", diskBar, p.last.disk),
 		"",
-		uptimeLine,
 	}
 	if p.last.battery.present {
 		lines = append(lines, batteryLine(p.last.battery, barW))
 	}
+	lines = append(lines, uptimeLine)
 	return strings.Join(lines, "\n")
 }
 
