@@ -16,14 +16,14 @@ builds:
 
 archives:
   - name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
-    format: tar.gz
+    formats: ['tar.gz']
     files: [LICENSE, README.md]
 
 checksum:
   name_template: "checksums.txt"
   algorithm: sha256
 
-brews:
+homebrew_casks:
   - name: today
     repository:
       owner: jonmilley
@@ -32,11 +32,7 @@ brews:
       branch: main
       pull_request:
         enabled: false
-    directory: Formula
+    directory: Casks
     homepage: "https://github.com/jonmilley/today-tui"
     description: "A terminal dashboard that puts everything you need to start your day in one place"
-    license: "GPL-3.0-only"
-    install: |
-      bin.install "today"
-    test: |
-      assert_match "usage", shell_output("#{bin}/today --help 2>&1", 1)
+    binaries: [today]
