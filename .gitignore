@@ -1,6 +1,9 @@
 # binary
 today-tui
 
+# worktrees
+.worktrees/
+
 # Go
 *.test
 *.out
