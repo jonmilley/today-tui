@@ -8,11 +8,18 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/distatus/battery"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 )
+
+type batteryInfo struct {
+	pct     float64
+	state   battery.AgnosticState
+	present bool
+}
 
 type statsTickMsg struct {
 	cpu       float64
@@ -23,6 +30,7 @@ type statsTickMsg struct {
 	uptime    uint64
 	cpuTemp   float64
 	cpuTempOK bool
+	battery   batteryInfo
 }
 
 type statsPane struct {
@@ -67,6 +75,22 @@ func gatherStats() tea.Msg {
 	}
 	if temps, err := host.SensorsTemperatures(); err == nil {
 		msg.cpuTemp, msg.cpuTempOK = findCPUTemp(temps)
+	}
+	if batteries, err := battery.GetAll(); err == nil && len(batteries) > 0 {
+		// Aggregate across all batteries
+		var totalFull, totalCurrent float64
+		state := batteries[0].State
+		for _, b := range batteries {
+			totalFull += b.Full
+			totalCurrent += b.Current
+		}
+		if totalFull > 0 {
+			msg.battery = batteryInfo{
+				pct:     totalCurrent / totalFull * 100,
+				state:   state.Raw,
+				present: true,
+			}
+		}
 	}
 	return msg
 }
@@ -165,6 +189,9 @@ func (p statsPane) renderContent() string {
 		"",
 		uptimeLine,
 	}
+	if p.last.battery.present {
+		lines = append(lines, batteryLine(p.last.battery, barW))
+	}
 	return strings.Join(lines, "\n")
 }
 
@@ -184,6 +211,38 @@ func cpuTempLine(temp float64, ok bool) string {
 	}
 	val := fmt.Sprintf("%.0f°C / %.0f°F", temp, tempF)
 	return "  TEMP  " + lipgloss.NewStyle().Foreground(color).Render(val)
+}
+
+func batteryLine(b batteryInfo, barW int) string {
+	var color lipgloss.Color
+	switch {
+	case b.pct <= 20:
+		color = colorNeg
+	case b.pct <= 50:
+		color = colorStats
+	default:
+		color = colorPos
+	}
+
+	bar := lipgloss.NewStyle().Foreground(color).Render(progressBar(b.pct, barW))
+
+	var status string
+	switch b.state {
+	case battery.Charging:
+		status = "charging"
+	case battery.Full:
+		status = "full"
+	case battery.Discharging:
+		status = "discharging"
+	default:
+		status = ""
+	}
+
+	line := fmt.Sprintf("  BAT   [%s] %.0f%%", bar, b.pct)
+	if status != "" {
+		line += dimStyle.Render(" "+status)
+	}
+	return line
 }
 
 func (p statsPane) View() string {
