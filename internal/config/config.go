@@ -6,14 +6,23 @@ import (
 	"path/filepath"
 )
 
+type PanelConfig struct {
+	Todo    bool `json:"todo"`
+	Weather bool `json:"weather"`
+	Stocks  bool `json:"stocks"`
+	Stats   bool `json:"stats"`
+	News    bool `json:"news"`
+}
+
 type Config struct {
-	GitHubRepo    string   `json:"github_repo"`
-	GitHubToken   string   `json:"github_token"`
-	WeatherAPIKey string   `json:"weather_api_key"`
-	WeatherCity   string   `json:"weather_city"`
-	Units         string   `json:"units"` // "F" or "C"
-	Stocks        []string `json:"stocks"`
-	RSSFeedURL    string   `json:"rss_feed_url"`
+	GitHubRepo    string      `json:"github_repo"`
+	GitHubToken   string      `json:"github_token"`
+	WeatherAPIKey string      `json:"weather_api_key"`
+	WeatherCity   string      `json:"weather_city"`
+	Units         string      `json:"units"` // "F" or "C"
+	Stocks        []string    `json:"stocks"`
+	RSSFeedURL    string      `json:"rss_feed_url"`
+	Panels        PanelConfig `json:"panels"`
 }
 
 func DefaultStocks() []string {
@@ -49,6 +58,10 @@ func Load() (*Config, error) {
 	}
 	if cfg.Units != "C" {
 		cfg.Units = "F" // default to Fahrenheit
+	}
+	// Default all panels to enabled if none are set
+	if !cfg.Panels.Todo && !cfg.Panels.Weather && !cfg.Panels.Stocks && !cfg.Panels.Stats && !cfg.Panels.News {
+		cfg.Panels = PanelConfig{Todo: true, Weather: true, Stocks: true, Stats: true, News: true}
 	}
 	return &cfg, nil
 }

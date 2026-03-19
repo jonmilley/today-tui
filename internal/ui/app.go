@@ -15,6 +15,7 @@ type appMode int
 const (
 	modeSetup appMode = iota
 	modeDash
+	modeConfig
 )
 
 const (
@@ -30,9 +31,10 @@ const (
 type refreshTickMsg struct{}
 
 type App struct {
-	mode    appMode
-	wizard  wizardModel
-	cfg     *config.Config
+	mode         appMode
+	wizard       wizardModel
+	configEditor configEditor
+	cfg          *config.Config
 
 	todo    todoPane
 	weather weatherPane
@@ -99,6 +101,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.mode == modeSetup {
 			a.wizard.width = msg.Width
 			a.wizard.height = msg.Height
+		} else if a.mode == modeConfig {
+			a.configEditor.width = msg.Width
+			a.configEditor.height = msg.Height
 		} else {
 			a.resizePanes()
 		}
@@ -113,11 +118,24 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, a.Init()
 
+	case configClosedMsg:
+		a.cfg.Panels = msg.panels
+		_ = a.cfg.Save()
+		a.mode = modeDash
+		a.ensureFocusVisible()
+		a.resizePanes()
+		return a, nil
+
 	case tea.KeyMsg:
 		if a.mode == modeSetup {
 			var wizCmd tea.Cmd
 			a.wizard, wizCmd = a.wizard.Update(msg)
 			return a, wizCmd
+		}
+		if a.mode == modeConfig {
+			var cmd tea.Cmd
+			a.configEditor, cmd = a.configEditor.Update(msg)
+			return a, cmd
 		}
 		// While a pane is capturing input (e.g. create form), send ALL keys
 		// there so Tab/q/etc don't trigger global actions.
@@ -128,10 +146,15 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return a, tea.Quit
+		case ",":
+			a.configEditor = newConfigEditor(a.cfg.Panels)
+			a.configEditor.width = a.width
+			a.configEditor.height = a.height
+			a.mode = modeConfig
 		case "tab":
-			a.setFocus((a.focused + 1) % paneCount)
+			a.cycleFocus(1)
 		case "shift+tab":
-			a.setFocus((a.focused + paneCount - 1) % paneCount)
+			a.cycleFocus(-1)
 		default:
 			cmds = append(cmds, a.dispatchKey(msg))
 		}
@@ -192,6 +215,76 @@ func (a *App) dispatchKey(msg tea.KeyMsg) tea.Cmd {
 	return cmd
 }
 
+func (a *App) visiblePanes() []int {
+	var panes []int
+	if a.cfg.Panels.Todo {
+		panes = append(panes, paneTodo)
+	}
+	if a.cfg.Panels.Weather {
+		panes = append(panes, paneWeather)
+	}
+	if a.cfg.Panels.Stocks {
+		panes = append(panes, paneStocks)
+	}
+	if a.cfg.Panels.Stats {
+		panes = append(panes, paneStats)
+	}
+	if a.cfg.Panels.News {
+		panes = append(panes, paneNews)
+	}
+	return panes
+}
+
+func (a *App) visibleRightPanes() []int {
+	var panes []int
+	if a.cfg.Panels.Weather {
+		panes = append(panes, paneWeather)
+	}
+	if a.cfg.Panels.Stocks {
+		panes = append(panes, paneStocks)
+	}
+	if a.cfg.Panels.Stats {
+		panes = append(panes, paneStats)
+	}
+	if a.cfg.Panels.News {
+		panes = append(panes, paneNews)
+	}
+	return panes
+}
+
+func (a *App) cycleFocus(direction int) {
+	visible := a.visiblePanes()
+	if len(visible) == 0 {
+		return
+	}
+	idx := -1
+	for i, p := range visible {
+		if p == a.focused {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		a.setFocus(visible[0])
+		return
+	}
+	next := (idx + direction + len(visible)) % len(visible)
+	a.setFocus(visible[next])
+}
+
+func (a *App) ensureFocusVisible() {
+	visible := a.visiblePanes()
+	if len(visible) == 0 {
+		return
+	}
+	for _, p := range visible {
+		if p == a.focused {
+			return
+		}
+	}
+	a.setFocus(visible[0])
+}
+
 func (a *App) setFocus(p int) {
 	a.focused = p
 	a.todo.SetFocused(p == paneTodo)
@@ -201,6 +294,41 @@ func (a *App) setFocus(p int) {
 	a.news.SetFocused(p == paneNews)
 }
 
+func (a *App) syncFocus() {
+	a.todo.SetFocused(a.focused == paneTodo)
+	a.weather.SetFocused(a.focused == paneWeather)
+	a.stocks.SetFocused(a.focused == paneStocks)
+	a.stats.SetFocused(a.focused == paneStats)
+	a.news.SetFocused(a.focused == paneNews)
+}
+
+func (a *App) setPaneSize(pane, w, h int) {
+	switch pane {
+	case paneWeather:
+		a.weather.SetSize(w, h)
+	case paneStocks:
+		a.stocks.SetSize(w, h)
+	case paneStats:
+		a.stats.SetSize(w, h)
+	case paneNews:
+		a.news.SetSize(w, h)
+	}
+}
+
+func (a *App) layoutRow(panes []int, totalW, h int) {
+	if len(panes) == 0 || h == 0 {
+		return
+	}
+	if len(panes) == 1 {
+		a.setPaneSize(panes[0], totalW, h)
+		return
+	}
+	w1 := totalW / 2
+	w2 := totalW - w1
+	a.setPaneSize(panes[0], w1, h)
+	a.setPaneSize(panes[1], w2, h)
+}
+
 func (a *App) resizePanes() {
 	if a.width == 0 || a.height == 0 {
 		return
@@ -208,26 +336,68 @@ func (a *App) resizePanes() {
 	statusH := 1
 	availH := a.height - statusH
 
-	todoW := a.width * 2 / 5
-	rightW := a.width - todoW
-	rightPaneW := rightW / 2
-	rightPaneW2 := rightW - rightPaneW // handles odd widths
+	rightVisible := a.visibleRightPanes()
 
-	topH := availH / 2
-	botH := availH - topH
+	rightW := a.width
+	if a.cfg.Panels.Todo {
+		todoW := a.width
+		if len(rightVisible) > 0 {
+			todoW = a.width * 2 / 5
+			rightW = a.width - todoW
+		} else {
+			rightW = 0
+		}
+		a.todo.SetSize(todoW, availH)
+	}
 
-	a.todo.SetSize(todoW, availH)
-	a.weather.SetSize(rightPaneW, topH)
-	a.stocks.SetSize(rightPaneW2, topH)
-	a.stats.SetSize(rightPaneW, botH)
-	a.news.SetSize(rightPaneW2, botH)
+	n := len(rightVisible)
+	if n == 0 || rightW == 0 {
+		a.syncFocus()
+		return
+	}
 
-	// sync focus state
-	a.todo.SetFocused(a.focused == paneTodo)
-	a.weather.SetFocused(a.focused == paneWeather)
-	a.stocks.SetFocused(a.focused == paneStocks)
-	a.stats.SetFocused(a.focused == paneStats)
-	a.news.SetFocused(a.focused == paneNews)
+	topH := availH
+	botH := 0
+	if n > 2 {
+		topH = availH / 2
+		botH = availH - topH
+	}
+
+	r1 := rightVisible
+	r2 := []int{}
+	if n > 2 {
+		r1 = rightVisible[:2]
+		r2 = rightVisible[2:]
+	}
+
+	a.layoutRow(r1, rightW, topH)
+	if len(r2) > 0 {
+		a.layoutRow(r2, rightW, botH)
+	}
+
+	a.syncFocus()
+}
+
+func (a App) paneView(pane int) string {
+	switch pane {
+	case paneWeather:
+		return a.weather.View()
+	case paneStocks:
+		return a.stocks.View()
+	case paneStats:
+		return a.stats.View()
+	case paneNews:
+		return a.news.View()
+	}
+	return ""
+}
+
+func (a App) buildRow(panes []int) string {
+	views := make([]string, len(panes))
+	for i, p := range panes {
+		views[i] = a.paneView(p)
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top, views...)
 }
 
 func (a App) View() string {
@@ -237,25 +407,43 @@ func (a App) View() string {
 	if a.mode == modeSetup {
 		return a.wizard.View()
 	}
+	if a.mode == modeConfig {
+		return a.configEditor.View()
+	}
 
-	// Left: todo (full height)
-	left := a.todo.View()
+	rightVisible := a.visibleRightPanes()
 
-	// Right: 2x2 grid
-	topRight := lipgloss.JoinHorizontal(lipgloss.Top,
-		a.weather.View(),
-		a.stocks.View(),
-	)
-	botRight := lipgloss.JoinHorizontal(lipgloss.Top,
-		a.stats.View(),
-		a.news.View(),
-	)
-	right := lipgloss.JoinVertical(lipgloss.Left, topRight, botRight)
+	var left string
+	if a.cfg.Panels.Todo {
+		left = a.todo.View()
+	}
 
-	main := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+	var right string
+	if len(rightVisible) > 0 {
+		r1 := rightVisible
+		r2 := []int{}
+		if len(rightVisible) > 2 {
+			r1 = rightVisible[:2]
+			r2 = rightVisible[2:]
+		}
+		rows := []string{a.buildRow(r1)}
+		if len(r2) > 0 {
+			rows = append(rows, a.buildRow(r2))
+		}
+		right = lipgloss.JoinVertical(lipgloss.Left, rows...)
+	}
+
+	var main string
+	switch {
+	case left != "" && right != "":
+		main = lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+	case left != "":
+		main = left
+	default:
+		main = right
+	}
 
 	statusBar := buildStatusBar(a.width, a.focused)
-
 	return lipgloss.JoinVertical(lipgloss.Left, main, statusBar)
 }
 
@@ -265,7 +453,7 @@ func buildStatusBar(w, focused int) string {
 	if focused >= 0 && focused < len(paneNames) {
 		name = paneNames[focused]
 	}
-	left := dimStyle.Render("  Tab: next pane  q: quit  r: refresh")
+	left := dimStyle.Render("  Tab: next pane  ,: panels  q: quit  r: refresh")
 	right := dimStyle.Render("Focus: " + name + "  ")
 	gap := w - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 0 {
