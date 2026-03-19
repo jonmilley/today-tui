@@ -52,13 +52,13 @@ A terminal dashboard that puts everything you need to start your day in one plac
 ```bash
 git clone https://github.com/jonmilley/today-tui
 cd today-tui
-go build -o today-tui .
+make build
 ```
 
-Or install directly:
+Or install directly to `~/bin/today`:
 
 ```bash
-go install github.com/jonmilley/today-tui@latest
+make install
 ```
 
 ## First Run
@@ -66,7 +66,7 @@ go install github.com/jonmilley/today-tui@latest
 On first launch the setup wizard collects your credentials and saves them to `~/.config/today-tui/config.json`:
 
 ```
-$ ./today-tui
+$ ./today
 
   today-tui — First Launch Setup          Step 1 / 6
 
@@ -106,7 +106,7 @@ Config is stored at `~/.config/today-tui/config.json`:
 To re-run the setup wizard at any time:
 
 ```bash
-./today-tui --reconfigure
+./today --reconfigure
 ```
 
 ## Key Bindings
