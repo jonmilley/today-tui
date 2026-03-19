@@ -240,7 +240,7 @@ func batteryLine(b batteryInfo, barW int) string {
 
 	line := fmt.Sprintf("  BAT   [%s] %.0f%%", bar, b.pct)
 	if status != "" {
-		line += dimStyle.Render(" "+status)
+		line += "\n" + dimStyle.Render("         "+status)
 	}
 	return line
 }
