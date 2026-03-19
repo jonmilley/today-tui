@@ -8,7 +8,7 @@ var (
 	colorStocks  = lipgloss.Color("82")  // green
 	colorStats   = lipgloss.Color("220") // yellow
 	colorNews    = lipgloss.Color("213") // magenta
-	colorDim     = lipgloss.Color("240")
+	colorDim     = lipgloss.Color("245")
 	colorErr     = lipgloss.Color("196")
 	colorPos     = lipgloss.Color("82")
 	colorNeg     = lipgloss.Color("196")
