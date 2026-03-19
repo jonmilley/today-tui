@@ -41,13 +41,17 @@ A terminal dashboard that puts everything you need to start your day in one plac
 | **System** | CPU usage + temperature, RAM, disk, and uptime — refreshes every 3 seconds |
 | **News** | Any RSS/Atom feed — inline article preview with HTML stripped to plain text |
 
-## Requirements
+## Install
 
-- **Go 1.24+**
-- A free [OpenWeatherMap API key](https://openweathermap.org/api)
-- A GitHub personal access token with `repo` scope (for the Todo pane)
+### Homebrew (macOS)
 
-## Build
+```bash
+brew install jonmilley/tap/today
+```
+
+### Build from source
+
+Requires **Go 1.24+**.
 
 ```bash
 git clone https://github.com/jonmilley/today-tui
@@ -60,6 +64,11 @@ Or install directly to `~/bin/today`:
 ```bash
 make install
 ```
+
+## Requirements
+
+- A free [OpenWeatherMap API key](https://openweathermap.org/api)
+- A GitHub personal access token with `repo` scope (for the Todo pane)
 
 ## First Run
 
