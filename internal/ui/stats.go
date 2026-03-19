@@ -182,12 +182,16 @@ func (p statsPane) renderContent() string {
 
 	lines := []string{
 		fmt.Sprintf("  CPU   [%s] %.1f%%", cpuBar, p.last.cpu),
-		cpuTempLine(p.last.cpuTemp, p.last.cpuTempOK),
+	}
+	if p.last.cpuTempOK {
+		lines = append(lines, cpuTempLine(p.last.cpuTemp, p.last.cpuTempOK))
+	}
+	lines = append(lines,
 		fmt.Sprintf("  MEM   [%s] %.1f%%", memBar, p.last.memPct),
 		fmt.Sprintf("         %.1f / %.1f GB", p.last.memGB, p.last.memTot),
 		fmt.Sprintf("  DISK  [%s] %.1f%%", diskBar, p.last.disk),
 		"",
-	}
+	)
 	if p.last.battery.present {
 		lines = append(lines, batteryLine(p.last.battery, barW))
 	}
