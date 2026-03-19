@@ -93,15 +93,26 @@ Config is stored at `~/.config/today-tui/config.json`:
 
 ```json
 {
-  "github_repo":      "owner/repo",
-  "github_token":     "ghp_...",
-  "weather_api_key":  "...",
-  "weather_city":     "London",
-  "units":        "F",
-  "stocks": ["SPY", "QQQ", "AAPL", "GOOGL", "META", "AMZN", "NFLX"],
-  "rss_feed_url":     "https://hnrss.org/frontpage"
+  "github_repo":    "owner/repo",
+  "github_token":   "ghp_...",
+  "weather_api_key": "...",
+  "weather_city":   "London",
+  "units":          "F",
+  "stocks":         ["SPY", "QQQ", "AAPL", "GOOGL", "META", "AMZN", "NFLX"],
+  "rss_feed_url":   "https://hnrss.org/frontpage",
+  "panels": {
+    "todo":    true,
+    "weather": true,
+    "stocks":  true,
+    "stats":   true,
+    "news":    true
+  }
 }
 ```
+
+Each entry in `panels` controls whether that pane is visible. All panels default to enabled if the `panels` key is absent.
+
+You can also toggle panels interactively at runtime by pressing `,`, which opens a menu where you can enable or disable each pane with `Space` or `Enter`.
 
 To re-run the setup wizard at any time:
 
