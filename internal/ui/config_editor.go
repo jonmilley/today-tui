@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"today-tui/internal/config"
+	"github.com/jonmilley/today-tui/internal/config"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

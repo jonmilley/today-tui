@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"today-tui/internal/api"
+	"github.com/jonmilley/today-tui/internal/api"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"

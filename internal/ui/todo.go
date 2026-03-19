@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"today-tui/internal/api"
+	"github.com/jonmilley/today-tui/internal/api"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"

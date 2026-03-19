@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"today-tui/internal/config"
+	"github.com/jonmilley/today-tui/internal/config"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"

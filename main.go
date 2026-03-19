@@ -5,8 +5,8 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"today-tui/internal/config"
-	"today-tui/internal/ui"
+	"github.com/jonmilley/today-tui/internal/config"
+	"github.com/jonmilley/today-tui/internal/ui"
 )
 
 func main() {

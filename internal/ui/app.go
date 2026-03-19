@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"today-tui/internal/api"
-	"today-tui/internal/config"
+	"github.com/jonmilley/today-tui/internal/api"
+	"github.com/jonmilley/today-tui/internal/config"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

@@ -1,0 +1,42 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - binary: today
+    main: .
+    env:
+      - CGO_ENABLED=0
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    ldflags: [-s -w]
+    flags: [-trimpath]
+
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    format: tar.gz
+    files: [LICENSE, README.md]
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+brews:
+  - name: today
+    repository:
+      owner: jonmilley
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      branch: main
+      pull_request:
+        enabled: false
+    directory: Formula
+    homepage: "https://github.com/jonmilley/today-tui"
+    description: "A terminal dashboard that puts everything you need to start your day in one place"
+    license: "GPL-3.0-only"
+    install: |
+      bin.install "today"
+    test: |
+      assert_match "usage", shell_output("#{bin}/today --help 2>&1", 1)
