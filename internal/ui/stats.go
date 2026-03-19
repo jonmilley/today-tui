@@ -151,7 +151,7 @@ func (p *statsPane) SetSize(w, h int) {
 func (p *statsPane) SetFocused(f bool) { p.focused = f }
 
 func (p statsPane) renderContent() string {
-	barW := p.width - 16
+	barW := p.width - 21
 	if barW < 4 {
 		barW = 4
 	}
