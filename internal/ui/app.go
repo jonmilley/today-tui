@@ -60,6 +60,16 @@ func NewApp(cfg *config.Config) App {
 	}
 }
 
+// NewReconfigureApp launches the setup wizard pre-populated with values from
+// an existing config so the user can edit rather than re-enter everything.
+func NewReconfigureApp(existing *config.Config) App {
+	return App{
+		mode:   modeSplash,
+		splash: newSplash(),
+		wizard: newWizardFrom(existing),
+	}
+}
+
 func buildDash(cfg *config.Config) App {
 	gh := api.NewGitHubClient(cfg.GitHubToken, cfg.GitHubRepo)
 	yc := api.NewYahooClient()

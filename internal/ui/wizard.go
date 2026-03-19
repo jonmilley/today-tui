@@ -77,6 +77,23 @@ func newWizard() wizardModel {
 	}
 }
 
+// newWizardFrom creates a wizard pre-populated from an existing config.
+// Used by --reconfigure so the user can edit rather than re-enter everything.
+func newWizardFrom(cfg *config.Config) wizardModel {
+	m := newWizard()
+	if cfg == nil {
+		return m
+	}
+	m.inputs[0].SetValue(cfg.GitHubRepo)
+	m.inputs[1].SetValue(cfg.GitHubToken)
+	m.inputs[2].SetValue(cfg.WeatherAPIKey)
+	m.inputs[3].SetValue(cfg.WeatherCity)
+	m.inputs[4].SetValue(cfg.Units)
+	m.inputs[5].SetValue(cfg.RSSFeedURL)
+	m.panels = cfg.Panels
+	return m
+}
+
 func (m wizardModel) isPanelEnabled(idx int) bool {
 	switch panelToggles[idx].key {
 	case "todo":
