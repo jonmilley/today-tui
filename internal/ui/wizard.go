@@ -29,22 +29,25 @@ const (
 	stepWeatherCity
 	stepUnits
 	stepRSSURL
+	stepPanels
 	stepDone
 )
 
 type wizardModel struct {
-	step    wizardStep
-	inputs  []textinput.Model
-	err     string
-	width   int
-	height  int
+	step        wizardStep
+	inputs      []textinput.Model
+	err         string
+	width       int
+	height      int
+	panels      config.PanelConfig
+	panelCursor int
 }
 
 var wizardPrompts = []struct {
-	title    string
-	hint     string
+	title       string
+	hint        string
 	placeholder string
-	password bool
+	password    bool
 }{
 	{"GitHub Repository", "Format: owner/repo (e.g. acme/tasks)", "owner/repo", false},
 	{"GitHub Token", "Personal access token with 'repo' scope", "ghp_...", true},
@@ -68,7 +71,54 @@ func newWizard() wizardModel {
 		inputs[i] = ti
 	}
 	inputs[0].Focus()
-	return wizardModel{inputs: inputs}
+	return wizardModel{
+		inputs: inputs,
+		panels: config.PanelConfig{Todo: true, Weather: true, Stocks: true, Stats: true, News: true},
+	}
+}
+
+func (m wizardModel) isPanelEnabled(idx int) bool {
+	switch panelToggles[idx].key {
+	case "todo":
+		return m.panels.Todo
+	case "weather":
+		return m.panels.Weather
+	case "stocks":
+		return m.panels.Stocks
+	case "stats":
+		return m.panels.Stats
+	case "news":
+		return m.panels.News
+	}
+	return false
+}
+
+func (m *wizardModel) togglePanel(idx int) {
+	switch panelToggles[idx].key {
+	case "todo":
+		m.panels.Todo = !m.panels.Todo
+	case "weather":
+		m.panels.Weather = !m.panels.Weather
+	case "stocks":
+		m.panels.Stocks = !m.panels.Stocks
+	case "stats":
+		m.panels.Stats = !m.panels.Stats
+	case "news":
+		m.panels.News = !m.panels.News
+	}
+}
+
+func (m wizardModel) buildConfig() *config.Config {
+	return &config.Config{
+		GitHubRepo:    m.inputs[0].Value(),
+		GitHubToken:   m.inputs[1].Value(),
+		WeatherAPIKey: m.inputs[2].Value(),
+		WeatherCity:   m.inputs[3].Value(),
+		Units:         normalizeUnits(m.inputs[4].Value()),
+		RSSFeedURL:    m.inputs[5].Value(),
+		Stocks:        config.DefaultStocks(),
+		Panels:        m.panels,
+	}
 }
 
 func (m wizardModel) Init() tea.Cmd { return textinput.Blink }
@@ -80,30 +130,50 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyEnter:
-			if m.step < stepDone {
-				m.inputs[m.step].Blur()
-				m.step++
-				if int(m.step) < len(m.inputs) {
-					m.inputs[m.step].Focus()
-					return m, textinput.Blink
-				}
-				// All done
-				cfg := &config.Config{
-					GitHubRepo:    m.inputs[0].Value(),
-					GitHubToken:   m.inputs[1].Value(),
-					WeatherAPIKey: m.inputs[2].Value(),
-					WeatherCity:   m.inputs[3].Value(),
-					Units:         normalizeUnits(m.inputs[4].Value()),
-					RSSFeedURL:    m.inputs[5].Value(),
-					Stocks:        config.DefaultStocks(),
-				}
+		// Panel step has its own navigation — handle it before the text-input switch.
+		if m.step == stepPanels {
+			switch msg.Type {
+			case tea.KeyEnter:
+				cfg := m.buildConfig()
 				if err := cfg.Save(); err != nil {
 					m.err = err.Error()
 					return m, nil
 				}
+				m.step = stepDone
 				return m, func() tea.Msg { return SetupDoneMsg{Cfg: cfg} }
+			case tea.KeyEsc:
+				m.step = stepRSSURL
+				m.inputs[stepRSSURL].Focus()
+				return m, textinput.Blink
+			default:
+				switch msg.String() {
+				case "j", "down":
+					if m.panelCursor < len(panelToggles)-1 {
+						m.panelCursor++
+					}
+				case "k", "up":
+					if m.panelCursor > 0 {
+						m.panelCursor--
+					}
+				case " ":
+					m.togglePanel(m.panelCursor)
+				}
+			}
+			return m, nil
+		}
+
+		switch msg.Type {
+		case tea.KeyEnter:
+			if m.step < stepPanels {
+				m.inputs[m.step].Blur()
+				m.step++
+				if m.step == stepPanels {
+					return m, nil // panel step needs no text-input focus
+				}
+				if int(m.step) < len(m.inputs) {
+					m.inputs[m.step].Focus()
+					return m, textinput.Blink
+				}
 			}
 		case tea.KeyEsc:
 			if m.step > 0 {
@@ -124,13 +194,9 @@ func (m wizardModel) View() string {
 	if m.width == 0 {
 		return "Loading..."
 	}
-
-	step := int(m.step)
-	if step >= len(wizardPrompts) {
+	if m.step == stepDone {
 		return "Saving configuration..."
 	}
-
-	p := wizardPrompts[step]
 
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
@@ -143,7 +209,53 @@ func (m wizardModel) View() string {
 		Padding(1, 2).
 		Width(60)
 
-	progress := fmt.Sprintf("Step %d / %d", step+1, len(wizardPrompts))
+	if m.step == stepPanels {
+		progress := fmt.Sprintf("Step %d / %d", int(stepPanels)+1, int(stepDone))
+
+		cursorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("69")).Bold(true)
+		checkedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("82"))
+		uncheckedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+
+		lines := []string{
+			headerStyle.Render("today-tui — First Launch Setup"),
+			dimStyle.Render(progress),
+			"",
+			boldStyle.Render("Enable Panels"),
+			dimStyle.Render("Choose which panels to show on the dashboard"),
+			"",
+		}
+		for i, toggle := range panelToggles {
+			var cursor, checkbox, label string
+			if i == m.panelCursor {
+				cursor = cursorStyle.Render("> ")
+			} else {
+				cursor = "  "
+			}
+			if m.isPanelEnabled(i) {
+				checkbox = checkedStyle.Render("[x]")
+			} else {
+				checkbox = uncheckedStyle.Render("[ ]")
+			}
+			if i == m.panelCursor {
+				label = boldStyle.Render(toggle.label)
+			} else {
+				label = toggle.label
+			}
+			lines = append(lines, cursor+checkbox+" "+label)
+		}
+		if m.err != "" {
+			lines = append(lines, "", errStyle.Render("Error: "+m.err))
+		}
+
+		footer := dimStyle.Render("Space: toggle  •  j/k: navigate  •  Enter: finish  •  Esc: back")
+		content := boxStyle.Render(strings.Join(lines, "\n"))
+		full := lipgloss.JoinVertical(lipgloss.Left, content, "", footer)
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, full)
+	}
+
+	step := int(m.step)
+	p := wizardPrompts[step]
+	progress := fmt.Sprintf("Step %d / %d", step+1, int(stepDone))
 
 	lines := []string{
 		headerStyle.Render("today-tui — First Launch Setup"),
@@ -154,19 +266,12 @@ func (m wizardModel) View() string {
 		"",
 		m.inputs[step].View(),
 	}
-
 	if m.err != "" {
 		lines = append(lines, "", errStyle.Render("Error: "+m.err))
 	}
 
 	footer := dimStyle.Render("Enter: confirm  •  Esc: back  •  Ctrl+C: quit")
-
 	content := boxStyle.Render(strings.Join(lines, "\n"))
-	full := lipgloss.JoinVertical(lipgloss.Left,
-		content,
-		"",
-		footer,
-	)
-
+	full := lipgloss.JoinVertical(lipgloss.Left, content, "", footer)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, full)
 }
