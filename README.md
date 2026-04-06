@@ -49,9 +49,14 @@ A terminal dashboard that puts everything you need to start your day in one plac
 brew install jonmilley/tap/today
 ```
 
-> **macOS Gatekeeper warning:** Because the binary isn't yet code-signed with an Apple Developer certificate, macOS may block it on first run. To unblock:
+> **macOS Security Warning:** Because this tool isn't signed with an Apple Developer certificate, macOS will block it on first run. To unblock:
+> 1. Try to run `today`, then click **Cancel** on the warning.
+> 2. Open **System Settings** > **Privacy & Security**.
+> 3. Click **Open Anyway** next to the notice about `today`.
+>
+> **Or, run this command to whitelist it immediately:**
 > ```bash
-> xattr -d com.apple.quarantine $(which today)
+> sudo xattr -rd com.apple.quarantine $(which today) && codesign -s - --force $(which today)
 > ```
 
 ### Build from source
