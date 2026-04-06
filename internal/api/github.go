@@ -20,7 +20,7 @@ type Issue struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-type GitHub interface {
+type TodoBackend interface {
 	GetOpenIssues() ([]Issue, error)
 	CreateIssue(title string) (*Issue, error)
 	CloseIssue(number int) error
@@ -32,7 +32,7 @@ type GitHubClient struct {
 	client *http.Client
 }
 
-var _ GitHub = (*GitHubClient)(nil)
+var _ TodoBackend = (*GitHubClient)(nil)
 
 func NewGitHubClient(token, repo string) *GitHubClient {
 	return &GitHubClient{
