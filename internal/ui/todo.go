@@ -409,4 +409,3 @@ func openBrowser(url string) {
 	}
 	exec.Command(cmd, args...).Start() //nolint:errcheck
 }
-

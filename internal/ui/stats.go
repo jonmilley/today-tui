@@ -34,11 +34,11 @@ type statsTickMsg struct {
 }
 
 type statsPane struct {
-	last    statsTickMsg
+	last     statsTickMsg
 	viewport viewport.Model
-	width   int
-	height  int
-	focused bool
+	width    int
+	height   int
+	focused  bool
 }
 
 func newStatsPane() statsPane {

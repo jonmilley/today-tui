@@ -147,8 +147,8 @@ type yahooErr struct{ msg string }
 
 func (e yahooErr) Error() string { return e.msg }
 
-func authErr(msg string) error       { return yahooErr{msg} }
-func isAuthErr(err error) bool       { _, ok := err.(yahooErr); return ok }
+func authErr(msg string) error { return yahooErr{msg} }
+func isAuthErr(err error) bool { _, ok := err.(yahooErr); return ok }
 
 type yfQuoteResponse struct {
 	QuoteResponse struct {

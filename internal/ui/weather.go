@@ -95,7 +95,7 @@ func (p weatherPane) Update(msg tea.Msg) (weatherPane, tea.Cmd) {
 	return p, nil
 }
 
-func (p *weatherPane) SetSize(w, h int) { p.width = w; p.height = h }
+func (p *weatherPane) SetSize(w, h int)  { p.width = w; p.height = h }
 func (p *weatherPane) SetFocused(f bool) { p.focused = f }
 
 func (p weatherPane) View() string {

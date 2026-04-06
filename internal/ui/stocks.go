@@ -102,7 +102,7 @@ func (p stocksPane) renderContent() string {
 	const symW, priceW, chgW, pctW = 6, 8, 8, 7
 	const fixedW = 2 + symW + 1 + priceW + 1 + chgW + 1 + pctW
 
-	innerW := p.width - 4 // lipgloss border removes 2 chars each side
+	innerW := p.width - 4        // lipgloss border removes 2 chars each side
 	nameW := innerW - fixedW - 1 // -1 for space before name col
 	showName := nameW >= 5
 

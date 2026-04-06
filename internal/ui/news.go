@@ -19,19 +19,19 @@ type gotNewsMsg struct {
 }
 
 type newsPane struct {
-	news      api.News
-	feedURL   string
-	items     []api.NewsItem
-	selected  int
-	loading   bool
-	err       string
-	lastSync  time.Time
-	viewport  viewport.Model // list
-	previewVP viewport.Model // article preview
+	news       api.News
+	feedURL    string
+	items      []api.NewsItem
+	selected   int
+	loading    bool
+	err        string
+	lastSync   time.Time
+	viewport   viewport.Model // list
+	previewVP  viewport.Model // article preview
 	previewing bool
-	width     int
-	height    int
-	focused   bool
+	width      int
+	height     int
+	focused    bool
 }
 
 func newNewsPane(news api.News, feedURL string) newsPane {
