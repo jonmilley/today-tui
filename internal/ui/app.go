@@ -33,17 +33,19 @@ const (
 type refreshTickMsg struct{}
 
 type Deps struct {
-	GitHub  api.GitHub
+	Todo    api.TodoBackend
 	Weather api.Weather
 	Stocks  api.Stocks
 	News    api.News
 }
 
 func (d *Deps) Refresh(cfg *config.Config) {
-	d.GitHub = api.NewGitHubClient(cfg.GitHubToken, cfg.GitHubRepo)
+	if cfg.TodoBackend == "local" {
+		d.Todo = api.NewLocalTodoClient()
+	} else {
+		d.Todo = api.NewGitHubClient(cfg.GitHubToken, cfg.GitHubRepo)
+	}
 	d.Weather = api.NewWeatherClient(cfg.WeatherAPIKey)
-	// Stocks and News don't require config for instantiation,
-	// but we'll ensure they exist if they were nil.
 	if d.Stocks == nil {
 		d.Stocks = api.NewYahooClient()
 	}
@@ -98,7 +100,7 @@ func buildDash(cfg *config.Config, deps Deps) App {
 		mode:    modeDash,
 		cfg:     cfg,
 		deps:    deps,
-		todo:    newTodoPane(deps.GitHub),
+		todo:    newTodoPane(deps.Todo),
 		weather: newWeatherPane(deps.Weather, cfg.WeatherCity, cfg.Units),
 		stocks:  newStocksPane(deps.Stocks, cfg.Stocks),
 		stats:   newStatsPane(),

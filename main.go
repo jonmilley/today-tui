@@ -20,14 +20,19 @@ func main() {
 	// appropriate errors or the setup wizard will collect them.
 	var deps ui.Deps
 	if cfg != nil {
+		var todo api.TodoBackend
+		if cfg.TodoBackend == "local" {
+			todo = api.NewLocalTodoClient()
+		} else {
+			todo = api.NewGitHubClient(cfg.GitHubToken, cfg.GitHubRepo)
+		}
 		deps = ui.Deps{
-			GitHub:  api.NewGitHubClient(cfg.GitHubToken, cfg.GitHubRepo),
+			Todo:    todo,
 			Weather: api.NewWeatherClient(cfg.WeatherAPIKey),
 			Stocks:  api.NewYahooClient(),
 			News:    api.NewNewsClient(),
 		}
 	} else {
-		// Minimum deps for wizard to run
 		deps = ui.Deps{
 			Stocks: api.NewYahooClient(),
 			News:   api.NewNewsClient(),
