@@ -7,6 +7,19 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	panelTodo    = "todo"
+	panelWeather = "weather"
+	panelStocks  = "stocks"
+	panelStats   = "stats"
+	panelNews    = "news"
+
+	keyUp    = "up"
+	keyDown  = "down"
+	keyEnter = "enter"
+	keyEsc   = "esc"
+)
+
 type configClosedMsg struct {
 	panels config.PanelConfig
 }
@@ -17,11 +30,11 @@ type panelToggle struct {
 }
 
 var panelToggles = []panelToggle{
-	{"Todo", "todo"},
-	{"Weather", "weather"},
-	{"Stocks", "stocks"},
-	{"Stats", "stats"},
-	{"News", "news"},
+	{"Todo", panelTodo},
+	{"Weather", panelWeather},
+	{"Stocks", panelStocks},
+	{"Stats", panelStats},
+	{"News", panelNews},
 }
 
 type configEditor struct {
@@ -37,15 +50,15 @@ func newConfigEditor(panels config.PanelConfig) configEditor {
 
 func (e configEditor) isEnabled(idx int) bool {
 	switch panelToggles[idx].key {
-	case "todo":
+	case panelTodo:
 		return e.panels.Todo
-	case "weather":
+	case panelWeather:
 		return e.panels.Weather
-	case "stocks":
+	case panelStocks:
 		return e.panels.Stocks
-	case "stats":
+	case panelStats:
 		return e.panels.Stats
-	case "news":
+	case panelNews:
 		return e.panels.News
 	}
 	return false
@@ -53,15 +66,15 @@ func (e configEditor) isEnabled(idx int) bool {
 
 func (e *configEditor) toggle(idx int) {
 	switch panelToggles[idx].key {
-	case "todo":
+	case panelTodo:
 		e.panels.Todo = !e.panels.Todo
-	case "weather":
+	case panelWeather:
 		e.panels.Weather = !e.panels.Weather
-	case "stocks":
+	case panelStocks:
 		e.panels.Stocks = !e.panels.Stocks
-	case "stats":
+	case panelStats:
 		e.panels.Stats = !e.panels.Stats
-	case "news":
+	case panelNews:
 		e.panels.News = !e.panels.News
 	}
 }
@@ -70,17 +83,17 @@ func (e configEditor) Update(msg tea.Msg) (configEditor, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "j", "down":
+		case "j", keyDown:
 			if e.cursor < len(panelToggles)-1 {
 				e.cursor++
 			}
-		case "k", "up":
+		case "k", keyUp:
 			if e.cursor > 0 {
 				e.cursor--
 			}
-		case " ", "enter":
+		case " ", keyEnter:
 			e.toggle(e.cursor)
-		case "esc", "q", ",":
+		case keyEsc, "q", ",":
 			return e, func() tea.Msg { return configClosedMsg{panels: e.panels} }
 		}
 	}

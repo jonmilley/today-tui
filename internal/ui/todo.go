@@ -94,130 +94,161 @@ func (p todoPane) Update(msg tea.Msg) (todoPane, tea.Cmd) {
 		cmds = append(cmds, fetchIssues(p.gh))
 
 	case gotTodosMsg:
-		p.loading = false
-		if msg.err != nil {
-			p.err = msg.err.Error()
-		} else {
-			p.err = ""
-			p.issues = msg.issues
-			p.lastSync = time.Now()
-			if p.selected >= len(p.issues) {
-				p.selected = max(0, len(p.issues)-1)
-			}
-		}
-		p.viewport.SetContent(p.renderContent())
+		p, cmd := p.handleGotTodos(msg)
+		return p, cmd
 
 	case closedIssueMsg:
-		if msg.err != nil {
-			p.status = fmt.Sprintf("Error: %s", msg.err)
-		} else {
-			p.status = fmt.Sprintf("Closed #%d", msg.number)
-			for i, iss := range p.issues {
-				if iss.Number == msg.number {
-					p.issues = append(p.issues[:i], p.issues[i+1:]...)
-					break
-				}
-			}
-			if p.selected >= len(p.issues) {
-				p.selected = max(0, len(p.issues)-1)
-			}
-		}
-		p.viewport.SetContent(p.renderContent())
+		p, cmd := p.handleClosedIssue(msg)
+		return p, cmd
 
 	case createdIssueMsg:
-		p.creating = false
-		p.titleInput.Reset()
-		p.titleInput.Blur()
-		p.updateViewportHeight()
-		if msg.err != nil {
-			p.status = "Error: " + msg.err.Error()
-		} else {
-			p.status = fmt.Sprintf("Created #%d", msg.issue.Number)
-			// Optimistically prepend the new issue
-			p.issues = append([]api.Issue{msg.issue}, p.issues...)
-			p.selected = 0
-		}
-		p.viewport.SetContent(p.renderContent())
+		p, cmd := p.handleCreatedIssue(msg)
+		return p, cmd
 
 	case tea.KeyMsg:
 		if !p.focused {
 			break
 		}
+		p, cmd := p.handleKeyMsg(msg)
+		return p, cmd
+	}
 
-		// --- confirm close mode ---
-		if p.confirming {
-			switch msg.String() {
-			case "y", "Y":
-				p.confirming = false
-				p.status = "Closing…"
-				cmds = append(cmds, closeIssue(p.gh, p.confirmNum))
-			case "n", "N", "esc":
-				p.confirming = false
-				p.status = ""
-				p.viewport.SetContent(p.renderContent())
-			}
-			return p, tea.Batch(cmds...)
+	var vpCmd tea.Cmd
+	p.viewport, vpCmd = p.viewport.Update(msg)
+	if vpCmd != nil {
+		cmds = append(cmds, vpCmd)
+	}
+	return p, tea.Batch(cmds...)
+}
+
+func (p todoPane) handleGotTodos(msg gotTodosMsg) (todoPane, tea.Cmd) {
+	p.loading = false
+	if msg.err != nil {
+		p.err = msg.err.Error()
+	} else {
+		p.err = ""
+		p.issues = msg.issues
+		p.lastSync = time.Now()
+		if p.selected >= len(p.issues) {
+			p.selected = max(0, len(p.issues)-1)
 		}
+	}
+	p.viewport.SetContent(p.renderContent())
+	return p, nil
+}
 
-		// --- create mode: all keys go to the input ---
-		if p.creating {
-			switch msg.Type {
-			case tea.KeyEnter:
-				title := strings.TrimSpace(p.titleInput.Value())
-				if title != "" {
-					p.status = "Creating…"
-					cmds = append(cmds, submitCreateIssue(p.gh, title))
-				}
-			case tea.KeyEsc:
-				p.creating = false
-				p.titleInput.Reset()
-				p.titleInput.Blur()
-				p.status = ""
-				p.updateViewportHeight()
-				p.viewport.SetContent(p.renderContent())
-			default:
-				var tiCmd tea.Cmd
-				p.titleInput, tiCmd = p.titleInput.Update(msg)
-				cmds = append(cmds, tiCmd)
+func (p todoPane) handleClosedIssue(msg closedIssueMsg) (todoPane, tea.Cmd) {
+	if msg.err != nil {
+		p.status = fmt.Sprintf("Error: %s", msg.err)
+	} else {
+		p.status = fmt.Sprintf("Closed #%d", msg.number)
+		for i, iss := range p.issues {
+			if iss.Number == msg.number {
+				p.issues = append(p.issues[:i], p.issues[i+1:]...)
+				break
 			}
-			return p, tea.Batch(cmds...)
 		}
+		if p.selected >= len(p.issues) {
+			p.selected = max(0, len(p.issues)-1)
+		}
+	}
+	p.viewport.SetContent(p.renderContent())
+	return p, nil
+}
 
-		// --- normal navigation mode ---
+func (p todoPane) handleCreatedIssue(msg createdIssueMsg) (todoPane, tea.Cmd) {
+	p.creating = false
+	p.titleInput.Reset()
+	p.titleInput.Blur()
+	p.updateViewportHeight()
+	if msg.err != nil {
+		p.status = "Error: " + msg.err.Error()
+	} else {
+		p.status = fmt.Sprintf("Created #%d", msg.issue.Number)
+		// Optimistically prepend the new issue
+		p.issues = append([]api.Issue{msg.issue}, p.issues...)
+		p.selected = 0
+	}
+	p.viewport.SetContent(p.renderContent())
+	return p, nil
+}
+
+func (p todoPane) handleKeyMsg(msg tea.KeyMsg) (todoPane, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	// --- confirm close mode ---
+	if p.confirming {
 		switch msg.String() {
-		case "j", "down":
-			if p.selected < len(p.issues)-1 {
-				p.selected++
-				p.viewport.SetContent(p.renderContent())
-				p.ensureVisible()
-			}
-		case "k", "up":
-			if p.selected > 0 {
-				p.selected--
-				p.viewport.SetContent(p.renderContent())
-				p.ensureVisible()
-			}
-		case "enter":
-			if p.selected < len(p.issues) {
-				openBrowser(p.issues[p.selected].HTMLURL)
-			}
-		case "c":
-			if p.selected < len(p.issues) {
-				p.confirming = true
-				p.confirmNum = p.issues[p.selected].Number
-				p.status = fmt.Sprintf("Close #%d?", p.confirmNum)
-				p.viewport.SetContent(p.renderContent())
-			}
-		case "n":
-			p.creating = true
+		case "y", "Y":
+			p.confirming = false
+			p.status = "Closing…"
+			cmds = append(cmds, closeIssue(p.gh, p.confirmNum))
+		case "n", "N", "esc":
+			p.confirming = false
 			p.status = ""
-			p.titleInput.Focus()
+			p.viewport.SetContent(p.renderContent())
+		}
+		return p, tea.Batch(cmds...)
+	}
+
+	// --- create mode: all keys go to the input ---
+	if p.creating {
+		switch msg.Type {
+		case tea.KeyEnter:
+			title := strings.TrimSpace(p.titleInput.Value())
+			if title != "" {
+				p.status = "Creating…"
+				cmds = append(cmds, submitCreateIssue(p.gh, title))
+			}
+		case tea.KeyEsc:
+			p.creating = false
+			p.titleInput.Reset()
+			p.titleInput.Blur()
+			p.status = ""
 			p.updateViewportHeight()
 			p.viewport.SetContent(p.renderContent())
-			cmds = append(cmds, textinput.Blink)
-		case "r":
-			cmds = append(cmds, func() tea.Msg { return fetchTodosMsg{} })
+		default:
+			var tiCmd tea.Cmd
+			p.titleInput, tiCmd = p.titleInput.Update(msg)
+			cmds = append(cmds, tiCmd)
 		}
+		return p, tea.Batch(cmds...)
+	}
+
+	// --- normal navigation mode ---
+	switch msg.String() {
+	case "j", "down":
+		if p.selected < len(p.issues)-1 {
+			p.selected++
+			p.viewport.SetContent(p.renderContent())
+			p.ensureVisible()
+		}
+	case "k", "up":
+		if p.selected > 0 {
+			p.selected--
+			p.viewport.SetContent(p.renderContent())
+			p.ensureVisible()
+		}
+	case "enter":
+		if p.selected < len(p.issues) {
+			openBrowser(p.issues[p.selected].HTMLURL)
+		}
+	case "c":
+		if p.selected < len(p.issues) {
+			p.confirming = true
+			p.confirmNum = p.issues[p.selected].Number
+			p.status = fmt.Sprintf("Close #%d?", p.confirmNum)
+			p.viewport.SetContent(p.renderContent())
+		}
+	case "n":
+		p.creating = true
+		p.status = ""
+		p.titleInput.Focus()
+		p.updateViewportHeight()
+		p.viewport.SetContent(p.renderContent())
+		cmds = append(cmds, textinput.Blink)
+	case "r":
+		cmds = append(cmds, func() tea.Msg { return fetchTodosMsg{} })
 	}
 
 	var vpCmd tea.Cmd

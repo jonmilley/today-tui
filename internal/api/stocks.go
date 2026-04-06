@@ -57,7 +57,9 @@ func (yc *YahooClient) initCrumb() error {
 	seed.Header.Set("User-Agent", browserUA)
 	seed.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	seed.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	yc.client.Do(seed) //nolint:errcheck — only need the cookies
+	if _, err := yc.client.Do(seed); err != nil {
+		return err
+	}
 
 	// Fetch the crumb token.
 	cr, err := http.NewRequest("GET", "https://query1.finance.yahoo.com/v1/test/getcrumb", nil)
