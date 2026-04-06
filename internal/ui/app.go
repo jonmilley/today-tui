@@ -32,12 +32,33 @@ const (
 // refreshTickMsg triggers periodic data refresh for slow-updating panes.
 type refreshTickMsg struct{}
 
+type Deps struct {
+	GitHub  api.GitHub
+	Weather api.Weather
+	Stocks  api.Stocks
+	News    api.News
+}
+
+func (d *Deps) Refresh(cfg *config.Config) {
+	d.GitHub = api.NewGitHubClient(cfg.GitHubToken, cfg.GitHubRepo)
+	d.Weather = api.NewWeatherClient(cfg.WeatherAPIKey)
+	// Stocks and News don't require config for instantiation,
+	// but we'll ensure they exist if they were nil.
+	if d.Stocks == nil {
+		d.Stocks = api.NewYahooClient()
+	}
+	if d.News == nil {
+		d.News = api.NewNewsClient()
+	}
+}
+
 type App struct {
 	mode         appMode
 	splash       splashModel
 	wizard       wizardModel
 	configEditor configEditor
 	cfg          *config.Config
+	deps         Deps
 
 	todo    todoPane
 	weather weatherPane
@@ -51,36 +72,37 @@ type App struct {
 	ready   bool
 }
 
-func NewApp(cfg *config.Config) App {
+func NewApp(cfg *config.Config, deps Deps) App {
 	return App{
 		mode:   modeSplash,
 		splash: newSplash(),
 		wizard: newWizard(),
 		cfg:    cfg,
+		deps:   deps,
 	}
 }
 
 // NewReconfigureApp launches the setup wizard pre-populated with values from
 // an existing config so the user can edit rather than re-enter everything.
-func NewReconfigureApp(existing *config.Config) App {
+func NewReconfigureApp(existing *config.Config, deps Deps) App {
 	return App{
 		mode:   modeSplash,
 		splash: newSplash(),
 		wizard: newWizardFrom(existing),
+		deps:   deps,
 	}
 }
 
-func buildDash(cfg *config.Config) App {
-	gh := api.NewGitHubClient(cfg.GitHubToken, cfg.GitHubRepo)
-	yc := api.NewYahooClient()
+func buildDash(cfg *config.Config, deps Deps) App {
 	return App{
 		mode:    modeDash,
 		cfg:     cfg,
-		todo:    newTodoPane(gh),
-		weather: newWeatherPane(cfg.WeatherAPIKey, cfg.WeatherCity, cfg.Units),
-		stocks:  newStocksPane(yc, cfg.Stocks),
+		deps:    deps,
+		todo:    newTodoPane(deps.GitHub),
+		weather: newWeatherPane(deps.Weather, cfg.WeatherCity, cfg.Units),
+		stocks:  newStocksPane(deps.Stocks, cfg.Stocks),
 		stats:   newStatsPane(),
-		news:    newNewsPane(cfg.RSSFeedURL),
+		news:    newNewsPane(deps.News, cfg.RSSFeedURL),
 		focused: paneTodo,
 	}
 }
@@ -137,7 +159,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, a.wizard.Init()
 		}
 		w, h, ready := a.width, a.height, a.ready
-		a = buildDash(a.cfg)
+		a.deps.Refresh(a.cfg)
+		a = buildDash(a.cfg, a.deps)
 		a.width, a.height, a.ready = w, h, ready
 		if ready {
 			a.resizePanes()
@@ -146,7 +169,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case SetupDoneMsg:
 		w, h, ready := a.width, a.height, a.ready
-		a = buildDash(msg.Cfg)
+		a.deps.Refresh(msg.Cfg)
+		a = buildDash(msg.Cfg, a.deps)
 		a.width, a.height, a.ready = w, h, ready
 		if ready {
 			a.resizePanes()

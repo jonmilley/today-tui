@@ -20,6 +20,10 @@ type StockQuote struct {
 	ChangePct float64
 }
 
+type Stocks interface {
+	FetchQuotes(symbols []string) ([]StockQuote, error)
+}
+
 // YahooClient holds a persistent HTTP session (cookie jar + crumb) required
 // by the Yahoo Finance API since mid-2024.
 type YahooClient struct {
@@ -27,6 +31,8 @@ type YahooClient struct {
 	crumb  string
 	mu     sync.Mutex
 }
+
+var _ Stocks = (*YahooClient)(nil)
 
 const browserUA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 

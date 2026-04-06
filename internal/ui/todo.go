@@ -30,7 +30,7 @@ type createdIssueMsg struct {
 }
 
 type todoPane struct {
-	gh         *api.GitHubClient
+	gh         api.GitHub
 	issues     []api.Issue
 	selected   int
 	loading    bool
@@ -47,7 +47,7 @@ type todoPane struct {
 	titleInput textinput.Model
 }
 
-func newTodoPane(gh *api.GitHubClient) todoPane {
+func newTodoPane(gh api.GitHub) todoPane {
 	ti := textinput.New()
 	ti.Placeholder = "Issue title…"
 	ti.CharLimit = 256
@@ -61,21 +61,21 @@ func (p todoPane) Init() tea.Cmd {
 	return func() tea.Msg { return fetchTodosMsg{} }
 }
 
-func fetchIssues(gh *api.GitHubClient) tea.Cmd {
+func fetchIssues(gh api.GitHub) tea.Cmd {
 	return func() tea.Msg {
 		issues, err := gh.GetOpenIssues()
 		return gotTodosMsg{issues: issues, err: err}
 	}
 }
 
-func closeIssue(gh *api.GitHubClient, number int) tea.Cmd {
+func closeIssue(gh api.GitHub, number int) tea.Cmd {
 	return func() tea.Msg {
 		err := gh.CloseIssue(number)
 		return closedIssueMsg{number: number, err: err}
 	}
 }
 
-func submitCreateIssue(gh *api.GitHubClient, title string) tea.Cmd {
+func submitCreateIssue(gh api.GitHub, title string) tea.Cmd {
 	return func() tea.Msg {
 		issue, err := gh.CreateIssue(title)
 		if err != nil {

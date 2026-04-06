@@ -16,7 +16,19 @@ type NewsItem struct {
 	Source      string
 }
 
-func FetchNews(feedURL string) ([]NewsItem, error) {
+type News interface {
+	FetchNews(feedURL string) ([]NewsItem, error)
+}
+
+type NewsClient struct{}
+
+var _ News = (*NewsClient)(nil)
+
+func NewNewsClient() *NewsClient {
+	return &NewsClient{}
+}
+
+func (c *NewsClient) FetchNews(feedURL string) ([]NewsItem, error) {
 	fp := gofeed.NewParser()
 	feed, err := fp.ParseURL(feedURL)
 	if err != nil {

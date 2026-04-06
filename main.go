@@ -5,6 +5,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jonmilley/today-tui/internal/api"
 	"github.com/jonmilley/today-tui/internal/config"
 	"github.com/jonmilley/today-tui/internal/ui"
 )
@@ -12,17 +13,36 @@ import (
 func main() {
 	reconfigure := len(os.Args) > 1 && os.Args[1] == "--reconfigure"
 
+	cfg, _ := config.Load()
+
+	// Best-effort client init. If some keys are missing, the UI will show
+	// appropriate errors or the setup wizard will collect them.
+	var deps ui.Deps
+	if cfg != nil {
+		deps = ui.Deps{
+			GitHub:  api.NewGitHubClient(cfg.GitHubToken, cfg.GitHubRepo),
+			Weather: api.NewWeatherClient(cfg.WeatherAPIKey),
+			Stocks:  api.NewYahooClient(),
+			News:    api.NewNewsClient(),
+		}
+	} else {
+		// Minimum deps for wizard to run
+		deps = ui.Deps{
+			Stocks: api.NewYahooClient(),
+			News:   api.NewNewsClient(),
+		}
+	}
+
 	var app ui.App
 	if reconfigure {
-		existing, _ := config.Load() // best-effort; nil is fine if no config exists yet
-		app = ui.NewReconfigureApp(existing)
+		app = ui.NewReconfigureApp(cfg, deps)
 	} else {
-		cfg, err := config.Load()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-			os.Exit(1)
+		if cfg == nil {
+			// Trigger setup wizard by passing nil config
+			app = ui.NewApp(nil, deps)
+		} else {
+			app = ui.NewApp(cfg, deps)
 		}
-		app = ui.NewApp(cfg)
 	}
 
 	p := tea.NewProgram(app, tea.WithAltScreen())

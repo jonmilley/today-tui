@@ -9,19 +9,46 @@ import (
 	"time"
 )
 
-var weatherClient = &http.Client{Timeout: 10 * time.Second}
-
 type WeatherData struct {
-	City    string
-	Country string
-	TempF   float64
-	TempC   float64
-	FeelsF  float64
-	Desc    string
-	Icon    string
+	City     string
+	Country  string
+	TempF    float64
+	TempC    float64
+	FeelsF   float64
+	Desc     string
+	Icon     string
 	Humidity int
-	WindMph float64
-	WindDir string
+	WindMph  float64
+	WindDir  string
+}
+
+// ForecastDay holds an aggregated daily forecast (derived from 3-hour blocks).
+type ForecastDay struct {
+	TempMinC  float64
+	TempMaxC  float64
+	TempMinF  float64
+	TempMaxF  float64
+	Desc      string
+	PrecipPct int // 0–100
+}
+
+type Weather interface {
+	FetchWeather(city string) (*WeatherData, error)
+	FetchForecast(city string) (*ForecastDay, error)
+}
+
+type WeatherClient struct {
+	apiKey string
+	client *http.Client
+}
+
+var _ Weather = (*WeatherClient)(nil)
+
+func NewWeatherClient(apiKey string) *WeatherClient {
+	return &WeatherClient{
+		apiKey: apiKey,
+		client: &http.Client{Timeout: 10 * time.Second},
+	}
 }
 
 type owmResponse struct {
@@ -42,6 +69,94 @@ type owmResponse struct {
 		Speed float64 `json:"speed"`
 		Deg   float64 `json:"deg"`
 	} `json:"wind"`
+}
+
+type owmForecastResponse struct {
+	City struct {
+		Timezone int `json:"timezone"` // UTC offset in seconds
+	} `json:"city"`
+	List []struct {
+		Dt   int64 `json:"dt"`
+		Main struct {
+			TempMin float64 `json:"temp_min"`
+			TempMax float64 `json:"temp_max"`
+		} `json:"main"`
+		Weather []struct {
+			Description string `json:"description"`
+		} `json:"weather"`
+		Pop float64 `json:"pop"` // probability of precipitation, 0–1
+	} `json:"list"`
+}
+
+func (c *WeatherClient) FetchForecast(city string) (*ForecastDay, error) {
+	endpoint := fmt.Sprintf(
+		"https://api.openweathermap.org/data/2.5/forecast?q=%s&appid=%s&units=metric",
+		url.QueryEscape(city), c.apiKey,
+	)
+	resp, err := c.client.Get(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("invalid API key")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("forecast API: %s", resp.Status)
+	}
+
+	var r owmForecastResponse
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		return nil, err
+	}
+
+	return parseTomorrow(r), nil
+}
+
+func (c *WeatherClient) FetchWeather(city string) (*WeatherData, error) {
+	endpoint := fmt.Sprintf(
+		"https://api.openweathermap.org/data/2.5/weather?q=%s&appid=%s&units=metric",
+		url.QueryEscape(city), c.apiKey,
+	)
+	resp, err := c.client.Get(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("invalid API key (new keys take up to 2h to activate)")
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("city not found: %q", city)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("weather API: %s", resp.Status)
+	}
+
+	var r owmResponse
+	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+		return nil, err
+	}
+
+	desc := ""
+	if len(r.Weather) > 0 {
+		desc = r.Weather[0].Description
+	}
+
+	return &WeatherData{
+		City:     r.Name,
+		Country:  r.Sys.Country,
+		TempC:    r.Main.Temp,
+		TempF:    cToF(r.Main.Temp),
+		FeelsF:   cToF(r.Main.FeelsLike),
+		Desc:     desc,
+		Icon:     weatherIcon(desc),
+		Humidity: r.Main.Humidity,
+		WindMph:  r.Wind.Speed * 2.237, // m/s to mph
+		WindDir:  degToDir(r.Wind.Deg),
+	}, nil
 }
 
 func degToDir(deg float64) string {
@@ -67,59 +182,6 @@ func weatherIcon(desc string) string {
 	default:
 		return "  ---  "
 	}
-}
-
-// ForecastDay holds an aggregated daily forecast (derived from 3-hour blocks).
-type ForecastDay struct {
-	TempMinC float64
-	TempMaxC float64
-	TempMinF float64
-	TempMaxF float64
-	Desc     string
-	PrecipPct int // 0–100
-}
-
-type owmForecastResponse struct {
-	City struct {
-		Timezone int `json:"timezone"` // UTC offset in seconds
-	} `json:"city"`
-	List []struct {
-		Dt   int64 `json:"dt"`
-		Main struct {
-			TempMin float64 `json:"temp_min"`
-			TempMax float64 `json:"temp_max"`
-		} `json:"main"`
-		Weather []struct {
-			Description string `json:"description"`
-		} `json:"weather"`
-		Pop float64 `json:"pop"` // probability of precipitation, 0–1
-	} `json:"list"`
-}
-
-func FetchForecast(apiKey, city string) (*ForecastDay, error) {
-	endpoint := fmt.Sprintf(
-		"https://api.openweathermap.org/data/2.5/forecast?q=%s&appid=%s&units=metric",
-		url.QueryEscape(city), apiKey,
-	)
-	resp, err := weatherClient.Get(endpoint)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, fmt.Errorf("invalid API key")
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("forecast API: %s", resp.Status)
-	}
-
-	var r owmForecastResponse
-	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-		return nil, err
-	}
-
-	return parseTomorrow(r), nil
 }
 
 // parseTomorrow aggregates 3-hour forecast blocks for the next calendar day
@@ -172,49 +234,4 @@ func parseTomorrow(r owmForecastResponse) *ForecastDay {
 		Desc:      desc,
 		PrecipPct: int(maxPop * 100),
 	}
-}
-
-func FetchWeather(apiKey, city string) (*WeatherData, error) {
-	endpoint := fmt.Sprintf(
-		"https://api.openweathermap.org/data/2.5/weather?q=%s&appid=%s&units=metric",
-		url.QueryEscape(city), apiKey,
-	)
-	resp, err := weatherClient.Get(endpoint)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, fmt.Errorf("invalid API key (new keys take up to 2h to activate)")
-	}
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("city not found: %q", city)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("weather API: %s", resp.Status)
-	}
-
-	var r owmResponse
-	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-		return nil, err
-	}
-
-	desc := ""
-	if len(r.Weather) > 0 {
-		desc = r.Weather[0].Description
-	}
-
-	return &WeatherData{
-		City:     r.Name,
-		Country:  r.Sys.Country,
-		TempC:    r.Main.Temp,
-		TempF:    cToF(r.Main.Temp),
-		FeelsF:   cToF(r.Main.FeelsLike),
-		Desc:     desc,
-		Icon:     weatherIcon(desc),
-		Humidity: r.Main.Humidity,
-		WindMph:  r.Wind.Speed * 2.237, // m/s to mph
-		WindDir:  degToDir(r.Wind.Deg),
-	}, nil
 }

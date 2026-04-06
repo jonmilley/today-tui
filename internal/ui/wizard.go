@@ -140,6 +140,38 @@ func (m wizardModel) buildConfig() *config.Config {
 
 func (m wizardModel) Init() tea.Cmd { return textinput.Blink }
 
+func (m wizardModel) validate() string {
+	val := strings.TrimSpace(m.inputs[int(m.step)].Value())
+	switch m.step {
+	case stepGitHubRepo:
+		if val == "" {
+			return "Repository is required"
+		}
+		parts := strings.Split(val, "/")
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return "Format must be owner/repo"
+		}
+	case stepGitHubToken:
+		if val == "" {
+			return "Token is required"
+		}
+	case stepWeatherKey:
+		if val == "" {
+			return "API key is required"
+		}
+	case stepWeatherCity:
+		if val == "" {
+			return "City is required"
+		}
+	case stepUnits:
+		u := strings.ToUpper(strings.TrimSpace(val))
+		if u != "F" && u != "C" {
+			return "Enter 'F' or 'C'"
+		}
+	}
+	return ""
+}
+
 func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
@@ -182,6 +214,11 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyEnter:
 			if m.step < stepPanels {
+				if err := m.validate(); err != nil {
+					m.err = err
+					return m, nil
+				}
+				m.err = ""
 				m.inputs[m.step].Blur()
 				m.step++
 				if m.step == stepPanels {
@@ -194,6 +231,7 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 			}
 		case tea.KeyEsc:
 			if m.step > 0 {
+				m.err = ""
 				m.inputs[m.step].Blur()
 				m.step--
 				m.inputs[m.step].Focus()

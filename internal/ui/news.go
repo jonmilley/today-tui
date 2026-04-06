@@ -19,6 +19,7 @@ type gotNewsMsg struct {
 }
 
 type newsPane struct {
+	news      api.News
 	feedURL   string
 	items     []api.NewsItem
 	selected  int
@@ -33,8 +34,8 @@ type newsPane struct {
 	focused   bool
 }
 
-func newNewsPane(feedURL string) newsPane {
-	return newsPane{feedURL: feedURL, loading: true}
+func newNewsPane(news api.News, feedURL string) newsPane {
+	return newsPane{news: news, feedURL: feedURL, loading: true}
 }
 
 func (p newsPane) Init() tea.Cmd {
@@ -44,9 +45,9 @@ func (p newsPane) Init() tea.Cmd {
 	return func() tea.Msg { return fetchNewsMsg{} }
 }
 
-func doFetchNews(feedURL string) tea.Cmd {
+func doFetchNews(news api.News, feedURL string) tea.Cmd {
 	return func() tea.Msg {
-		items, err := api.FetchNews(feedURL)
+		items, err := news.FetchNews(feedURL)
 		return gotNewsMsg{items: items, err: err}
 	}
 }
@@ -59,7 +60,7 @@ func (p newsPane) Update(msg tea.Msg) (newsPane, tea.Cmd) {
 			break
 		}
 		p.loading = true
-		cmds = append(cmds, doFetchNews(p.feedURL))
+		cmds = append(cmds, doFetchNews(p.news, p.feedURL))
 
 	case gotNewsMsg:
 		p.loading = false
@@ -119,7 +120,7 @@ func (p newsPane) Update(msg tea.Msg) (newsPane, tea.Cmd) {
 		case "r":
 			if p.feedURL != "" {
 				p.loading = true
-				cmds = append(cmds, doFetchNews(p.feedURL))
+				cmds = append(cmds, doFetchNews(p.news, p.feedURL))
 			}
 		}
 	}

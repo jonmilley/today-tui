@@ -19,7 +19,7 @@ type gotStocksMsg struct {
 }
 
 type stocksPane struct {
-	yc       *api.YahooClient
+	stocks   api.Stocks
 	symbols  []string
 	quotes   []api.StockQuote
 	loading  bool
@@ -31,17 +31,17 @@ type stocksPane struct {
 	focused  bool
 }
 
-func newStocksPane(yc *api.YahooClient, symbols []string) stocksPane {
-	return stocksPane{yc: yc, symbols: symbols, loading: true}
+func newStocksPane(stocks api.Stocks, symbols []string) stocksPane {
+	return stocksPane{stocks: stocks, symbols: symbols, loading: true}
 }
 
 func (p stocksPane) Init() tea.Cmd {
 	return func() tea.Msg { return fetchStocksMsg{} }
 }
 
-func doFetchStocks(yc *api.YahooClient, symbols []string) tea.Cmd {
+func doFetchStocks(stocks api.Stocks, symbols []string) tea.Cmd {
 	return func() tea.Msg {
-		quotes, err := yc.FetchQuotes(symbols)
+		quotes, err := stocks.FetchQuotes(symbols)
 		return gotStocksMsg{quotes: quotes, err: err}
 	}
 }
@@ -51,7 +51,7 @@ func (p stocksPane) Update(msg tea.Msg) (stocksPane, tea.Cmd) {
 	switch msg := msg.(type) {
 	case fetchStocksMsg:
 		p.loading = true
-		cmds = append(cmds, doFetchStocks(p.yc, p.symbols))
+		cmds = append(cmds, doFetchStocks(p.stocks, p.symbols))
 	case gotStocksMsg:
 		p.loading = false
 		if msg.err != nil {
@@ -65,7 +65,7 @@ func (p stocksPane) Update(msg tea.Msg) (stocksPane, tea.Cmd) {
 	case tea.KeyMsg:
 		if p.focused && msg.String() == "r" {
 			p.loading = true
-			cmds = append(cmds, doFetchStocks(p.yc, p.symbols))
+			cmds = append(cmds, doFetchStocks(p.stocks, p.symbols))
 		}
 	}
 	var vpCmd tea.Cmd

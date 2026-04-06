@@ -20,11 +20,19 @@ type Issue struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type GitHub interface {
+	GetOpenIssues() ([]Issue, error)
+	CreateIssue(title string) (*Issue, error)
+	CloseIssue(number int) error
+}
+
 type GitHubClient struct {
 	token  string
 	repo   string
 	client *http.Client
 }
+
+var _ GitHub = (*GitHubClient)(nil)
 
 func NewGitHubClient(token, repo string) *GitHubClient {
 	return &GitHubClient{

@@ -19,7 +19,7 @@ type gotWeatherMsg struct {
 }
 
 type weatherPane struct {
-	apiKey   string
+	weather  api.Weather
 	city     string
 	units    string // "F" or "C"
 	data     *api.WeatherData
@@ -32,15 +32,15 @@ type weatherPane struct {
 	focused  bool
 }
 
-func newWeatherPane(apiKey, city, units string) weatherPane {
-	return weatherPane{apiKey: apiKey, city: city, units: units, loading: true}
+func newWeatherPane(weather api.Weather, city, units string) weatherPane {
+	return weatherPane{weather: weather, city: city, units: units, loading: true}
 }
 
 func (p weatherPane) Init() tea.Cmd {
 	return func() tea.Msg { return fetchWeatherMsg{} }
 }
 
-func doFetchWeather(apiKey, city string) tea.Cmd {
+func doFetchWeather(weather api.Weather, city string) tea.Cmd {
 	return func() tea.Msg {
 		// Fetch current conditions and tomorrow's forecast in parallel.
 		type weatherResult struct {
@@ -56,11 +56,11 @@ func doFetchWeather(apiKey, city string) tea.Cmd {
 		fCh := make(chan forecastResult, 1)
 
 		go func() {
-			d, err := api.FetchWeather(apiKey, city)
+			d, err := weather.FetchWeather(city)
 			wCh <- weatherResult{d, err}
 		}()
 		go func() {
-			d, err := api.FetchForecast(apiKey, city)
+			d, err := weather.FetchForecast(city)
 			fCh <- forecastResult{d, err}
 		}()
 
@@ -75,7 +75,7 @@ func (p weatherPane) Update(msg tea.Msg) (weatherPane, tea.Cmd) {
 	switch msg := msg.(type) {
 	case fetchWeatherMsg:
 		p.loading = true
-		return p, doFetchWeather(p.apiKey, p.city)
+		return p, doFetchWeather(p.weather, p.city)
 	case gotWeatherMsg:
 		p.loading = false
 		if msg.err != nil {
@@ -89,7 +89,7 @@ func (p weatherPane) Update(msg tea.Msg) (weatherPane, tea.Cmd) {
 	case tea.KeyMsg:
 		if p.focused && msg.String() == "r" {
 			p.loading = true
-			return p, doFetchWeather(p.apiKey, p.city)
+			return p, doFetchWeather(p.weather, p.city)
 		}
 	}
 	return p, nil
