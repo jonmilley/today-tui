@@ -67,16 +67,16 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) Save() error {
-	p, err := Path()
+	path, err := Path()
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(p, data, 0o600)
+	return os.WriteFile(path, data, 0o600)
 }

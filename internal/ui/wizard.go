@@ -173,74 +173,92 @@ func (m wizardModel) validate() string {
 }
 
 func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
-	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		return m, nil
 	case tea.KeyMsg:
-		// Panel step has its own navigation — handle it before the text-input switch.
-		if m.step == stepPanels {
-			switch msg.Type {
-			case tea.KeyEnter:
-				cfg := m.buildConfig()
-				if err := cfg.Save(); err != nil {
-					m.err = err.Error()
-					return m, nil
-				}
-				m.step = stepDone
-				return m, func() tea.Msg { return SetupDoneMsg{Cfg: cfg} }
-			case tea.KeyEsc:
-				m.step = stepRSSURL
-				m.inputs[stepRSSURL].Focus()
-				return m, textinput.Blink
-			default:
-				switch msg.String() {
-				case "j", "down":
-					if m.panelCursor < len(panelToggles)-1 {
-						m.panelCursor++
-					}
-				case "k", "up":
-					if m.panelCursor > 0 {
-						m.panelCursor--
-					}
-				case " ":
-					m.togglePanel(m.panelCursor)
-				}
-			}
+		return m.handleKeyMsg(msg)
+	}
+
+	var cmd tea.Cmd
+	if int(m.step) < len(m.inputs) {
+		m.inputs[m.step], cmd = m.inputs[m.step].Update(msg)
+	}
+	return m, cmd
+}
+
+func (m wizardModel) handleKeyMsg(msg tea.KeyMsg) (wizardModel, tea.Cmd) {
+	if m.step == stepPanels {
+		return m.handlePanelStepKey(msg)
+	}
+	return m.handleTextInputKey(msg)
+}
+
+func (m wizardModel) handlePanelStepKey(msg tea.KeyMsg) (wizardModel, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEnter:
+		cfg := m.buildConfig()
+		if err := cfg.Save(); err != nil {
+			m.err = err.Error()
 			return m, nil
 		}
+		m.step = stepDone
+		return m, func() tea.Msg { return SetupDoneMsg{Cfg: cfg} }
+	case tea.KeyEsc:
+		m.step = stepRSSURL
+		m.inputs[stepRSSURL].Focus()
+		return m, textinput.Blink
+	}
 
-		switch msg.Type {
-		case tea.KeyEnter:
-			if m.step < stepPanels {
-				if err := m.validate(); err != "" {
-					m.err = err
-					return m, nil
-				}
-				m.err = ""
-				m.inputs[m.step].Blur()
-				m.step++
-				if m.step == stepPanels {
-					return m, nil // panel step needs no text-input focus
-				}
-				if int(m.step) < len(m.inputs) {
-					m.inputs[m.step].Focus()
-					return m, textinput.Blink
-				}
+	switch msg.String() {
+	case "j", keyDown:
+		if m.panelCursor < len(panelToggles)-1 {
+			m.panelCursor++
+		}
+	case "k", keyUp:
+		if m.panelCursor > 0 {
+			m.panelCursor--
+		}
+	case " ":
+		m.togglePanel(m.panelCursor)
+	}
+	return m, nil
+}
+
+func (m wizardModel) handleTextInputKey(msg tea.KeyMsg) (wizardModel, tea.Cmd) {
+	var cmd tea.Cmd
+	switch msg.Type {
+	case tea.KeyEnter:
+		if m.step < stepPanels {
+			if err := m.validate(); err != "" {
+				m.err = err
+				return m, nil
 			}
-		case tea.KeyEsc:
-			if m.step > 0 {
-				m.err = ""
-				m.inputs[m.step].Blur()
-				m.step--
+			m.err = ""
+			m.inputs[m.step].Blur()
+			m.step++
+			if m.step == stepPanels {
+				return m, nil // panel step needs no text-input focus
+			}
+			if int(m.step) < len(m.inputs) {
 				m.inputs[m.step].Focus()
 				return m, textinput.Blink
 			}
 		}
-	}
-	if int(m.step) < len(m.inputs) {
-		m.inputs[m.step], cmd = m.inputs[m.step].Update(msg)
+	case tea.KeyEsc:
+		if m.step > 0 {
+			m.err = ""
+			m.inputs[m.step].Blur()
+			m.step--
+			m.inputs[m.step].Focus()
+			return m, textinput.Blink
+		}
+	default:
+		if int(m.step) < len(m.inputs) {
+			m.inputs[m.step], cmd = m.inputs[m.step].Update(msg)
+		}
 	}
 	return m, cmd
 }

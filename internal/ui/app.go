@@ -129,101 +129,21 @@ func refreshTick() tea.Cmd {
 }
 
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		a.width = msg.Width
-		a.height = msg.Height
-		a.ready = true
-		switch a.mode {
-		case modeSplash:
-			a.splash.width = msg.Width
-			a.splash.height = msg.Height
-		case modeSetup:
-			a.wizard.width = msg.Width
-			a.wizard.height = msg.Height
-		case modeConfig:
-			a.configEditor.width = msg.Width
-			a.configEditor.height = msg.Height
-		default:
-			a.resizePanes()
-		}
-		return a, nil
+		return a.handleWindowSize(msg)
 
 	case splashDoneMsg:
-		if a.cfg == nil {
-			a.mode = modeSetup
-			a.wizard.width = a.width
-			a.wizard.height = a.height
-			return a, a.wizard.Init()
-		}
-		w, h, ready := a.width, a.height, a.ready
-		a.deps.Refresh(a.cfg)
-		a = buildDash(a.cfg, a.deps)
-		a.width, a.height, a.ready = w, h, ready
-		if ready {
-			a.resizePanes()
-		}
-		return a, a.initPanes()
+		return a.handleSplashDone()
 
 	case SetupDoneMsg:
-		w, h, ready := a.width, a.height, a.ready
-		a.deps.Refresh(msg.Cfg)
-		a = buildDash(msg.Cfg, a.deps)
-		a.width, a.height, a.ready = w, h, ready
-		if ready {
-			a.resizePanes()
-		}
-		return a, a.initPanes()
+		return a.handleSetupDone(msg)
 
 	case configClosedMsg:
-		a.cfg.Panels = msg.panels
-		_ = a.cfg.Save()
-		a.mode = modeDash
-		a.ensureFocusVisible()
-		a.resizePanes()
-		return a, nil
+		return a.handleConfigClosed(msg)
 
 	case tea.KeyMsg:
-		if a.mode == modeSplash {
-			if msg.String() == "q" || msg.String() == "ctrl+c" {
-				return a, tea.Quit
-			}
-			return a, func() tea.Msg { return splashDoneMsg{} }
-		}
-		if a.mode == modeSetup {
-			var wizCmd tea.Cmd
-			a.wizard, wizCmd = a.wizard.Update(msg)
-			return a, wizCmd
-		}
-		if a.mode == modeConfig {
-			var cmd tea.Cmd
-			a.configEditor, cmd = a.configEditor.Update(msg)
-			return a, cmd
-		}
-		// While a pane is capturing input (e.g. create form), send ALL keys
-		// there so Tab/q/etc don't trigger global actions.
-		if a.focused == paneTodo && a.todo.IsCapturing() {
-			cmds = append(cmds, a.dispatchKey(msg))
-			return a, tea.Batch(cmds...)
-		}
-		switch msg.String() {
-		case "q", "ctrl+c":
-			return a, tea.Quit
-		case ",":
-			a.configEditor = newConfigEditor(a.cfg.Panels)
-			a.configEditor.width = a.width
-			a.configEditor.height = a.height
-			a.mode = modeConfig
-		case "tab":
-			a.cycleFocus(1)
-		case "shift+tab":
-			a.cycleFocus(-1)
-		default:
-			cmds = append(cmds, a.dispatchKey(msg))
-		}
-		return a, tea.Batch(cmds...)
+		return a.handleKeyMsg(msg)
 	}
 
 	if a.mode == modeSplash {
@@ -238,7 +158,111 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, wizCmd
 	}
 
-	// Dispatch data messages to panes
+	return a.dispatchToPanes(msg)
+}
+
+func (a App) handleWindowSize(msg tea.WindowSizeMsg) (App, tea.Cmd) {
+	a.width = msg.Width
+	a.height = msg.Height
+	a.ready = true
+	switch a.mode {
+	case modeSplash:
+		a.splash.width = msg.Width
+		a.splash.height = msg.Height
+	case modeSetup:
+		a.wizard.width = msg.Width
+		a.wizard.height = msg.Height
+	case modeConfig:
+		a.configEditor.width = msg.Width
+		a.configEditor.height = msg.Height
+	default:
+		a.resizePanes()
+	}
+	return a, nil
+}
+
+func (a App) handleSplashDone() (App, tea.Cmd) {
+	if a.cfg == nil {
+		a.mode = modeSetup
+		a.wizard.width = a.width
+		a.wizard.height = a.height
+		return a, a.wizard.Init()
+	}
+	w, h, ready := a.width, a.height, a.ready
+	a.deps.Refresh(a.cfg)
+	a = buildDash(a.cfg, a.deps)
+	a.width, a.height, a.ready = w, h, ready
+	if ready {
+		a.resizePanes()
+	}
+	return a, a.initPanes()
+}
+
+func (a App) handleSetupDone(msg SetupDoneMsg) (App, tea.Cmd) {
+	w, h, ready := a.width, a.height, a.ready
+	a.deps.Refresh(msg.Cfg)
+	a = buildDash(msg.Cfg, a.deps)
+	a.width, a.height, a.ready = w, h, ready
+	if ready {
+		a.resizePanes()
+	}
+	return a, a.initPanes()
+}
+
+func (a App) handleConfigClosed(msg configClosedMsg) (App, tea.Cmd) {
+	a.cfg.Panels = msg.panels
+	_ = a.cfg.Save()
+	a.mode = modeDash
+	a.ensureFocusVisible()
+	a.resizePanes()
+	return a, nil
+}
+
+func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
+	if a.mode == modeSplash {
+		if msg.String() == "q" || msg.String() == "ctrl+c" {
+			return a, tea.Quit
+		}
+		return a, func() tea.Msg { return splashDoneMsg{} }
+	}
+	if a.mode == modeSetup {
+		var wizCmd tea.Cmd
+		a.wizard, wizCmd = a.wizard.Update(msg)
+		return a, wizCmd
+	}
+	if a.mode == modeConfig {
+		var cmd tea.Cmd
+		a.configEditor, cmd = a.configEditor.Update(msg)
+		return a, cmd
+	}
+	// While a pane is capturing input (e.g. create form), send ALL keys
+	// there so Tab/q/etc don't trigger global actions.
+	if a.focused == paneTodo && a.todo.IsCapturing() {
+		return a, a.dispatchKey(msg)
+	}
+
+	switch msg.String() {
+	case "q", "ctrl+c":
+		return a, tea.Quit
+	case ",":
+		a.configEditor = newConfigEditor(a.cfg.Panels)
+		a.configEditor.width = a.width
+		a.configEditor.height = a.height
+		a.mode = modeConfig
+		return a, nil
+	case "tab":
+		a.cycleFocus(1)
+		return a, nil
+	case "shift+tab":
+		a.cycleFocus(-1)
+		return a, nil
+	default:
+		return a, a.dispatchKey(msg)
+	}
+}
+
+func (a App) dispatchToPanes(msg tea.Msg) (App, tea.Cmd) {
+	var cmds []tea.Cmd
 	var cmd tea.Cmd
 
 	a.todo, cmd = a.todo.Update(msg)

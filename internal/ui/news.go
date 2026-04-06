@@ -63,69 +63,90 @@ func (p newsPane) Update(msg tea.Msg) (newsPane, tea.Cmd) {
 		cmds = append(cmds, doFetchNews(p.news, p.feedURL))
 
 	case gotNewsMsg:
-		p.loading = false
-		if msg.err != nil {
-			p.err = msg.err.Error()
-		} else {
-			p.err = ""
-			p.items = msg.items
-			p.lastSync = time.Now()
-			if p.selected >= len(p.items) {
-				p.selected = 0
-			}
-		}
-		p.viewport.SetContent(p.renderList())
+		p = p.handleGotNews(msg)
 
 	case tea.KeyMsg:
 		if !p.focused {
 			break
 		}
-		switch msg.String() {
-		case "j", "down":
-			if p.selected < len(p.items)-1 {
-				p.selected++
-				if p.previewing {
-					p.openPreview()
-				} else {
-					p.viewport.SetContent(p.renderList())
-					p.ensureVisible()
-				}
-			}
-		case "k", "up":
-			if p.selected > 0 {
-				p.selected--
-				if p.previewing {
-					p.openPreview()
-				} else {
-					p.viewport.SetContent(p.renderList())
-					p.ensureVisible()
-				}
-			}
-		case "enter", " ":
-			if p.selected < len(p.items) {
-				if p.previewing {
-					p.closePreview()
-				} else {
-					p.openPreview()
-				}
-			}
-		case "esc":
-			if p.previewing {
-				p.closePreview()
-			}
-		case "o":
-			if p.selected < len(p.items) {
-				openBrowser(p.items[p.selected].Link)
-			}
-		case "r":
-			if p.feedURL != "" {
-				p.loading = true
-				cmds = append(cmds, doFetchNews(p.news, p.feedURL))
-			}
-		}
+		return p.handleKeyMsg(msg)
 	}
 
 	// Route scroll events to the right viewport.
+	var vpCmd tea.Cmd
+	if p.previewing {
+		p.previewVP, vpCmd = p.previewVP.Update(msg)
+	} else {
+		p.viewport, vpCmd = p.viewport.Update(msg)
+	}
+	if vpCmd != nil {
+		cmds = append(cmds, vpCmd)
+	}
+	return p, tea.Batch(cmds...)
+}
+
+func (p newsPane) handleGotNews(msg gotNewsMsg) newsPane {
+	p.loading = false
+	if msg.err != nil {
+		p.err = msg.err.Error()
+	} else {
+		p.err = ""
+		p.items = msg.items
+		p.lastSync = time.Now()
+		if p.selected >= len(p.items) {
+			p.selected = 0
+		}
+	}
+	p.viewport.SetContent(p.renderList())
+	return p
+}
+
+func (p newsPane) handleKeyMsg(msg tea.KeyMsg) (newsPane, tea.Cmd) {
+	var cmds []tea.Cmd
+	switch msg.String() {
+	case "j", keyDown:
+		if p.selected < len(p.items)-1 {
+			p.selected++
+			if p.previewing {
+				p.openPreview()
+			} else {
+				p.viewport.SetContent(p.renderList())
+				p.ensureVisible()
+			}
+		}
+	case "k", keyUp:
+		if p.selected > 0 {
+			p.selected--
+			if p.previewing {
+				p.openPreview()
+			} else {
+				p.viewport.SetContent(p.renderList())
+				p.ensureVisible()
+			}
+		}
+	case keyEnter, " ":
+		if p.selected < len(p.items) {
+			if p.previewing {
+				p.closePreview()
+			} else {
+				p.openPreview()
+			}
+		}
+	case "o":
+		if p.selected < len(p.items) {
+			openBrowser(p.items[p.selected].Link)
+		}
+	case "esc":
+		if p.previewing {
+			p.closePreview()
+		}
+	case "r":
+		if p.feedURL != "" {
+			p.loading = true
+			cmds = append(cmds, doFetchNews(p.news, p.feedURL))
+		}
+	}
+
 	var vpCmd tea.Cmd
 	if p.previewing {
 		p.previewVP, vpCmd = p.previewVP.Update(msg)

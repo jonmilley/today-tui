@@ -174,62 +174,70 @@ func (p todoPane) handleCreatedIssue(msg createdIssueMsg) (todoPane, tea.Cmd) {
 }
 
 func (p todoPane) handleKeyMsg(msg tea.KeyMsg) (todoPane, tea.Cmd) {
-	var cmds []tea.Cmd
-
-	// --- confirm close mode ---
 	if p.confirming {
-		switch msg.String() {
-		case "y", "Y":
-			p.confirming = false
-			p.status = "Closing…"
-			cmds = append(cmds, closeIssue(p.gh, p.confirmNum))
-		case "n", "N", "esc":
-			p.confirming = false
-			p.status = ""
-			p.viewport.SetContent(p.renderContent())
-		}
-		return p, tea.Batch(cmds...)
+		return p.handleConfirmCloseKey(msg)
 	}
-
-	// --- create mode: all keys go to the input ---
 	if p.creating {
-		switch msg.Type {
-		case tea.KeyEnter:
-			title := strings.TrimSpace(p.titleInput.Value())
-			if title != "" {
-				p.status = "Creating…"
-				cmds = append(cmds, submitCreateIssue(p.gh, title))
-			}
-		case tea.KeyEsc:
-			p.creating = false
-			p.titleInput.Reset()
-			p.titleInput.Blur()
-			p.status = ""
-			p.updateViewportHeight()
-			p.viewport.SetContent(p.renderContent())
-		default:
-			var tiCmd tea.Cmd
-			p.titleInput, tiCmd = p.titleInput.Update(msg)
-			cmds = append(cmds, tiCmd)
-		}
-		return p, tea.Batch(cmds...)
+		return p.handleCreateModeKey(msg)
 	}
+	return p.handleNavigationKey(msg)
+}
 
-	// --- normal navigation mode ---
+func (p todoPane) handleConfirmCloseKey(msg tea.KeyMsg) (todoPane, tea.Cmd) {
+	var cmds []tea.Cmd
 	switch msg.String() {
-	case "j", "down":
+	case "y", "Y":
+		p.confirming = false
+		p.status = "Closing…"
+		cmds = append(cmds, closeIssue(p.gh, p.confirmNum))
+	case "n", "N", "esc":
+		p.confirming = false
+		p.status = ""
+		p.viewport.SetContent(p.renderContent())
+	}
+	return p, tea.Batch(cmds...)
+}
+
+func (p todoPane) handleCreateModeKey(msg tea.KeyMsg) (todoPane, tea.Cmd) {
+	var cmds []tea.Cmd
+	switch msg.Type {
+	case tea.KeyEnter:
+		title := strings.TrimSpace(p.titleInput.Value())
+		if title != "" {
+			p.status = "Creating…"
+			cmds = append(cmds, submitCreateIssue(p.gh, title))
+		}
+	case tea.KeyEsc:
+		p.creating = false
+		p.titleInput.Reset()
+		p.titleInput.Blur()
+		p.status = ""
+		p.updateViewportHeight()
+		p.viewport.SetContent(p.renderContent())
+	default:
+		var tiCmd tea.Cmd
+		p.titleInput, tiCmd = p.titleInput.Update(msg)
+		cmds = append(cmds, tiCmd)
+	}
+	return p, tea.Batch(cmds...)
+}
+
+func (p todoPane) handleNavigationKey(msg tea.KeyMsg) (todoPane, tea.Cmd) {
+	var cmds []tea.Cmd
+	switch msg.String() {
+	case "j", keyDown:
 		if p.selected < len(p.issues)-1 {
 			p.selected++
 			p.viewport.SetContent(p.renderContent())
 			p.ensureVisible()
 		}
-	case "k", "up":
+	case "k", keyUp:
 		if p.selected > 0 {
 			p.selected--
 			p.viewport.SetContent(p.renderContent())
 			p.ensureVisible()
 		}
-	case "enter":
+	case keyEnter:
 		if p.selected < len(p.issues) {
 			openBrowser(p.issues[p.selected].HTMLURL)
 		}

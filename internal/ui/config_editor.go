@@ -7,19 +7,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const (
-	panelTodo    = "todo"
-	panelWeather = "weather"
-	panelStocks  = "stocks"
-	panelStats   = "stats"
-	panelNews    = "news"
-
-	keyUp    = "up"
-	keyDown  = "down"
-	keyEnter = "enter"
-	keyEsc   = "esc"
-)
-
 type configClosedMsg struct {
 	panels config.PanelConfig
 }

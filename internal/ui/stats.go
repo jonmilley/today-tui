@@ -35,7 +35,6 @@ type statsTickMsg struct {
 
 type statsPane struct {
 	last    statsTickMsg
-	err     string
 	viewport viewport.Model
 	width   int
 	height  int

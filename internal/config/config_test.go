@@ -24,13 +24,13 @@ func TestConfigDefaults(t *testing.T) {
 
 	// Mock Path() behavior by setting an env var if needed, but Path() uses os.UserHomeDir()
 	// Let's just test the logic after loading data.
-	
+
 	data := []byte(`{}`)
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		t.Fatal(err)
 	}
-	
+
 	// Apply defaults (logic from Load)
 	if len(cfg.Stocks) == 0 {
 		cfg.Stocks = DefaultStocks()

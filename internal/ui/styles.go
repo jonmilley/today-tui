@@ -6,6 +6,19 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	panelTodo    = "todo"
+	panelWeather = "weather"
+	panelStocks  = "stocks"
+	panelStats   = "stats"
+	panelNews    = "news"
+
+	keyUp    = "up"
+	keyDown  = "down"
+	keyEnter = "enter"
+	keyEsc   = "esc"
+)
+
 var (
 	colorTodo    = lipgloss.Color("69")  // blue
 	colorWeather = lipgloss.Color("51")  // cyan
@@ -17,10 +30,9 @@ var (
 	colorPos     = lipgloss.Color("82")
 	colorNeg     = lipgloss.Color("196")
 
-	titleStyle = lipgloss.NewStyle().Bold(true).Padding(0, 1)
-	errStyle   = lipgloss.NewStyle().Foreground(colorErr)
-	dimStyle   = lipgloss.NewStyle().Foreground(colorDim)
-	boldStyle  = lipgloss.NewStyle().Bold(true)
+	errStyle  = lipgloss.NewStyle().Foreground(colorErr)
+	dimStyle  = lipgloss.NewStyle().Foreground(colorDim)
+	boldStyle = lipgloss.NewStyle().Bold(true)
 )
 
 func paneStyle(accent lipgloss.Color, focused bool, w, h int) lipgloss.Style {
@@ -46,17 +58,17 @@ func progressBar(pct float64, width int) string {
 	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
 }
 
-func truncate(s string, max int) string {
-	if max <= 0 {
+func truncate(s string, maxLen int) string {
+	if maxLen <= 0 {
 		return ""
 	}
-	if len(s) <= max {
+	if len(s) <= maxLen {
 		return s
 	}
-	if max <= 3 {
-		return s[:max]
+	if maxLen <= 3 {
+		return s[:maxLen]
 	}
-	return s[:max-3] + "..."
+	return s[:maxLen-3] + "..."
 }
 
 func padRight(s string, width int) string {
