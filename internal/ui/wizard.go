@@ -214,7 +214,7 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyEnter:
 			if m.step < stepPanels {
-				if err := m.validate(); err != nil {
+				if err := m.validate(); err != "" {
 					m.err = err
 					return m, nil
 				}
