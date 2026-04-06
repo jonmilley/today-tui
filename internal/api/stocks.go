@@ -34,7 +34,7 @@ type YahooClient struct {
 
 var _ Stocks = (*YahooClient)(nil)
 
-const browserUA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+const browserUA = "Mozilla/5.0 (X11; Linux x86_64) Chrome/122.0.0.0"
 
 func NewYahooClient() *YahooClient {
 	jar, _ := cookiejar.New(nil)
@@ -57,9 +57,11 @@ func (yc *YahooClient) initCrumb() error {
 	seed.Header.Set("User-Agent", browserUA)
 	seed.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	seed.Header.Set("Accept-Language", "en-US,en;q=0.9")
-	if _, err := yc.client.Do(seed); err != nil {
+	resp, err := yc.client.Do(seed)
+	if err != nil {
 		return err
 	}
+	resp.Body.Close()
 
 	// Fetch the crumb token.
 	cr, err := http.NewRequest("GET", "https://query1.finance.yahoo.com/v1/test/getcrumb", nil)
@@ -69,7 +71,7 @@ func (yc *YahooClient) initCrumb() error {
 	cr.Header.Set("User-Agent", browserUA)
 	cr.Header.Set("Accept", "text/plain")
 
-	resp, err := yc.client.Do(cr)
+	resp, err = yc.client.Do(cr)
 	if err != nil {
 		return err
 	}
@@ -101,7 +103,7 @@ func (yc *YahooClient) doFetch(symbols []string, forceRefresh bool) ([]StockQuot
 	if yc.crumb == "" || forceRefresh {
 		if err := yc.initCrumb(); err != nil {
 			yc.mu.Unlock()
-			return nil, fmt.Errorf("Yahoo Finance auth: %w", err)
+			return nil, fmt.Errorf("yahoo finance auth: %w", err)
 		}
 	}
 	crumb := yc.crumb
@@ -137,7 +139,7 @@ func (yc *YahooClient) doFetch(symbols []string, forceRefresh bool) ([]StockQuot
 	case http.StatusOK:
 		// fall through
 	default:
-		return nil, fmt.Errorf("Yahoo Finance: %s", resp.Status)
+		return nil, fmt.Errorf("yahoo finance: %s", resp.Status)
 	}
 
 	return parseYFQuotes(resp.Body)

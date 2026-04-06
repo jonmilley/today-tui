@@ -71,8 +71,8 @@ func (c *Config) Save() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
+	if mkErr := os.MkdirAll(filepath.Dir(path), 0o700); mkErr != nil {
+		return mkErr
 	}
 	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {

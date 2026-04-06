@@ -5,6 +5,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/jonmilley/today-tui/internal/api"
 	"github.com/jonmilley/today-tui/internal/config"
 	"github.com/jonmilley/today-tui/internal/ui"

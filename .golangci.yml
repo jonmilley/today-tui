@@ -1,36 +1,6 @@
-linters-settings:
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment
-  gocyclo:
-    min-complexity: 15
-  dupl:
-    threshold: 100
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-  misspell:
-    locale: US
-  lll:
-    line-length: 120
-  goimports:
-    local-prefixes: github.com/jonmilley/today-tui
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-    disabled-checks:
-      - wrapperFunc
-      - dupImport
-      - ifElseChain
-      - octalLiteral
-
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
     - bodyclose
     - dogsled
@@ -38,11 +8,8 @@ linters:
     - errcheck
     - goconst
     - gocyclo
-    - gofmt
-    - goimports
     - goprintffuncname
     - gosec
-    - gosimple
     - govet
     - ineffassign
     - lll
@@ -51,11 +18,60 @@ linters:
     - revive
     - rowserrcheck
     - staticcheck
-    - typecheck
     - unconvert
     - unparam
     - unused
     - whitespace
-
-run:
-  timeout: 5m
+  settings:
+    dupl:
+      threshold: 100
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+    gocritic:
+      disabled-checks:
+        - wrapperFunc
+        - dupImport
+        - ifElseChain
+        - octalLiteral
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+    gocyclo:
+      min-complexity: 15
+    govet:
+      disable:
+        - fieldalignment
+      enable-all: true
+    lll:
+      line-length: 120
+    misspell:
+      locale: US
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/jonmilley/today-tui
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

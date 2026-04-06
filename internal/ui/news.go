@@ -105,33 +105,11 @@ func (p newsPane) handleKeyMsg(msg tea.KeyMsg) (newsPane, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg.String() {
 	case "j", keyDown:
-		if p.selected < len(p.items)-1 {
-			p.selected++
-			if p.previewing {
-				p.openPreview()
-			} else {
-				p.viewport.SetContent(p.renderList())
-				p.ensureVisible()
-			}
-		}
+		p = p.handleSelection(1)
 	case "k", keyUp:
-		if p.selected > 0 {
-			p.selected--
-			if p.previewing {
-				p.openPreview()
-			} else {
-				p.viewport.SetContent(p.renderList())
-				p.ensureVisible()
-			}
-		}
+		p = p.handleSelection(-1)
 	case keyEnter, " ":
-		if p.selected < len(p.items) {
-			if p.previewing {
-				p.closePreview()
-			} else {
-				p.openPreview()
-			}
-		}
+		p = p.togglePreview()
 	case "o":
 		if p.selected < len(p.items) {
 			openBrowser(p.items[p.selected].Link)
@@ -157,6 +135,32 @@ func (p newsPane) handleKeyMsg(msg tea.KeyMsg) (newsPane, tea.Cmd) {
 		cmds = append(cmds, vpCmd)
 	}
 	return p, tea.Batch(cmds...)
+}
+
+func (p newsPane) handleSelection(delta int) newsPane {
+	newSel := p.selected + delta
+	if newSel >= 0 && newSel < len(p.items) {
+		p.selected = newSel
+		if p.previewing {
+			p.openPreview()
+		} else {
+			p.viewport.SetContent(p.renderList())
+			p.ensureVisible()
+		}
+	}
+	return p
+}
+
+func (p newsPane) togglePreview() newsPane {
+	if p.selected >= len(p.items) {
+		return p
+	}
+	if p.previewing {
+		p.closePreview()
+	} else {
+		p.openPreview()
+	}
+	return p
 }
 
 func (p *newsPane) openPreview() {

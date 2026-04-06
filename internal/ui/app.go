@@ -131,7 +131,7 @@ func refreshTick() tea.Cmd {
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		return a.handleWindowSize(msg)
+		return a.handleWindowSize(msg), nil
 
 	case splashDoneMsg:
 		return a.handleSplashDone()
@@ -140,7 +140,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.handleSetupDone(msg)
 
 	case configClosedMsg:
-		return a.handleConfigClosed(msg)
+		return a.handleConfigClosed(msg), nil
 
 	case tea.KeyMsg:
 		return a.handleKeyMsg(msg)
@@ -161,7 +161,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return a.dispatchToPanes(msg)
 }
 
-func (a App) handleWindowSize(msg tea.WindowSizeMsg) (App, tea.Cmd) {
+func (a App) handleWindowSize(msg tea.WindowSizeMsg) App {
 	a.width = msg.Width
 	a.height = msg.Height
 	a.ready = true
@@ -178,7 +178,7 @@ func (a App) handleWindowSize(msg tea.WindowSizeMsg) (App, tea.Cmd) {
 	default:
 		a.resizePanes()
 	}
-	return a, nil
+	return a
 }
 
 func (a App) handleSplashDone() (App, tea.Cmd) {
@@ -209,13 +209,13 @@ func (a App) handleSetupDone(msg SetupDoneMsg) (App, tea.Cmd) {
 	return a, a.initPanes()
 }
 
-func (a App) handleConfigClosed(msg configClosedMsg) (App, tea.Cmd) {
+func (a App) handleConfigClosed(msg configClosedMsg) App {
 	a.cfg.Panels = msg.panels
 	_ = a.cfg.Save()
 	a.mode = modeDash
 	a.ensureFocusVisible()
 	a.resizePanes()
-	return a, nil
+	return a
 }
 
 func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {

@@ -94,23 +94,20 @@ func (p todoPane) Update(msg tea.Msg) (todoPane, tea.Cmd) {
 		cmds = append(cmds, fetchIssues(p.gh))
 
 	case gotTodosMsg:
-		p, cmd := p.handleGotTodos(msg)
-		return p, cmd
+		return p.handleGotTodos(msg), nil
 
 	case closedIssueMsg:
-		p, cmd := p.handleClosedIssue(msg)
-		return p, cmd
+		return p.handleClosedIssue(msg), nil
 
 	case createdIssueMsg:
-		p, cmd := p.handleCreatedIssue(msg)
-		return p, cmd
+		return p.handleCreatedIssue(msg), nil
 
 	case tea.KeyMsg:
 		if !p.focused {
 			break
 		}
-		p, cmd := p.handleKeyMsg(msg)
-		return p, cmd
+		newPane, cmd := p.handleKeyMsg(msg)
+		return newPane, cmd
 	}
 
 	var vpCmd tea.Cmd
@@ -121,7 +118,7 @@ func (p todoPane) Update(msg tea.Msg) (todoPane, tea.Cmd) {
 	return p, tea.Batch(cmds...)
 }
 
-func (p todoPane) handleGotTodos(msg gotTodosMsg) (todoPane, tea.Cmd) {
+func (p todoPane) handleGotTodos(msg gotTodosMsg) todoPane {
 	p.loading = false
 	if msg.err != nil {
 		p.err = msg.err.Error()
@@ -134,10 +131,10 @@ func (p todoPane) handleGotTodos(msg gotTodosMsg) (todoPane, tea.Cmd) {
 		}
 	}
 	p.viewport.SetContent(p.renderContent())
-	return p, nil
+	return p
 }
 
-func (p todoPane) handleClosedIssue(msg closedIssueMsg) (todoPane, tea.Cmd) {
+func (p todoPane) handleClosedIssue(msg closedIssueMsg) todoPane {
 	if msg.err != nil {
 		p.status = fmt.Sprintf("Error: %s", msg.err)
 	} else {
@@ -153,10 +150,10 @@ func (p todoPane) handleClosedIssue(msg closedIssueMsg) (todoPane, tea.Cmd) {
 		}
 	}
 	p.viewport.SetContent(p.renderContent())
-	return p, nil
+	return p
 }
 
-func (p todoPane) handleCreatedIssue(msg createdIssueMsg) (todoPane, tea.Cmd) {
+func (p todoPane) handleCreatedIssue(msg createdIssueMsg) todoPane {
 	p.creating = false
 	p.titleInput.Reset()
 	p.titleInput.Blur()
@@ -170,7 +167,7 @@ func (p todoPane) handleCreatedIssue(msg createdIssueMsg) (todoPane, tea.Cmd) {
 		p.selected = 0
 	}
 	p.viewport.SetContent(p.renderContent())
-	return p, nil
+	return p
 }
 
 func (p todoPane) handleKeyMsg(msg tea.KeyMsg) (todoPane, tea.Cmd) {
