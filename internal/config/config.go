@@ -17,6 +17,7 @@ type PanelConfig struct {
 type Config struct {
 	GitHubRepo    string      `json:"github_repo"`
 	GitHubToken   string      `json:"github_token"`
+	TodoBackend   string      `json:"todo_backend"` // "github" or "local"
 	WeatherAPIKey string      `json:"weather_api_key"`
 	WeatherCity   string      `json:"weather_city"`
 	Units         string      `json:"units"` // "F" or "C"
