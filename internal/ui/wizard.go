@@ -23,18 +23,20 @@ func normalizeUnits(s string) string {
 type wizardStep int
 
 const (
-	stepGitHubRepo wizardStep = iota
-	stepGitHubToken
-	stepWeatherKey
-	stepWeatherCity
-	stepUnits
-	stepRSSURL
-	stepPanels
-	stepDone
+	stepTodoBackend wizardStep = iota // 0 — new first step
+	stepGitHubRepo                    // 1
+	stepGitHubToken                   // 2
+	stepWeatherKey                    // 3
+	stepWeatherCity                   // 4
+	stepUnits                         // 5
+	stepRSSURL                        // 6
+	stepPanels                        // 7
+	stepDone                          // 8
 )
 
 type wizardModel struct {
 	step        wizardStep
+	todoBackend string // "github" or "local"
 	inputs      []textinput.Model
 	err         string
 	width       int
@@ -42,6 +44,10 @@ type wizardModel struct {
 	panels      config.PanelConfig
 	panelCursor int
 }
+
+// textIdx returns the inputs[] index for the current text-input step.
+// stepGitHubRepo(1) → 0, stepGitHubToken(2) → 1, …, stepRSSURL(6) → 5.
+func (m wizardModel) textIdx() int { return int(m.step) - 1 }
 
 var wizardPrompts = []struct {
 	title       string
@@ -70,10 +76,11 @@ func newWizard() wizardModel {
 		}
 		inputs[i] = ti
 	}
-	inputs[0].Focus()
 	return wizardModel{
-		inputs: inputs,
-		panels: config.PanelConfig{Todo: true, Weather: true, Stocks: true, Stats: true, News: true},
+		step:        stepTodoBackend,
+		todoBackend: "github",
+		inputs:      inputs,
+		panels:      config.PanelConfig{Todo: true, Weather: true, Stocks: true, Stats: true, News: true},
 	}
 }
 
@@ -83,6 +90,11 @@ func newWizardFrom(cfg *config.Config) wizardModel {
 	m := newWizard()
 	if cfg == nil {
 		return m
+	}
+	if cfg.TodoBackend == "local" {
+		m.todoBackend = "local"
+	} else {
+		m.todoBackend = "github"
 	}
 	m.inputs[0].SetValue(cfg.GitHubRepo)
 	m.inputs[1].SetValue(cfg.GitHubToken)
@@ -127,6 +139,7 @@ func (m *wizardModel) togglePanel(idx int) {
 
 func (m wizardModel) buildConfig() *config.Config {
 	return &config.Config{
+		TodoBackend:   m.todoBackend,
 		GitHubRepo:    m.inputs[0].Value(),
 		GitHubToken:   m.inputs[1].Value(),
 		WeatherAPIKey: m.inputs[2].Value(),
@@ -141,7 +154,7 @@ func (m wizardModel) buildConfig() *config.Config {
 func (m wizardModel) Init() tea.Cmd { return textinput.Blink }
 
 func (m wizardModel) validate() string {
-	val := strings.TrimSpace(m.inputs[int(m.step)].Value())
+	val := strings.TrimSpace(m.inputs[m.textIdx()].Value())
 	switch m.step {
 	case stepGitHubRepo:
 		if val == "" {
@@ -183,17 +196,41 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
-	if int(m.step) < len(m.inputs) {
-		m.inputs[m.step], cmd = m.inputs[m.step].Update(msg)
+	if m.step > stepTodoBackend && m.textIdx() < len(m.inputs) {
+		m.inputs[m.textIdx()], cmd = m.inputs[m.textIdx()].Update(msg)
 	}
 	return m, cmd
 }
 
 func (m wizardModel) handleKeyMsg(msg tea.KeyMsg) (wizardModel, tea.Cmd) {
+	if m.step == stepTodoBackend {
+		return m.handleBackendStepKey(msg)
+	}
 	if m.step == stepPanels {
 		return m.handlePanelStepKey(msg)
 	}
 	return m.handleTextInputKey(msg)
+}
+
+func (m wizardModel) handleBackendStepKey(msg tea.KeyMsg) (wizardModel, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEnter:
+		m.err = ""
+		if m.todoBackend == "local" {
+			m.step = stepWeatherKey
+		} else {
+			m.step = stepGitHubRepo
+		}
+		m.inputs[m.textIdx()].Focus()
+		return m, textinput.Blink
+	}
+	switch msg.String() {
+	case "j", keyDown:
+		m.todoBackend = "local"
+	case "k", keyUp:
+		m.todoBackend = "github"
+	}
+	return m, nil
 }
 
 func (m wizardModel) handlePanelStepKey(msg tea.KeyMsg) (wizardModel, tea.Cmd) {
@@ -208,7 +245,7 @@ func (m wizardModel) handlePanelStepKey(msg tea.KeyMsg) (wizardModel, tea.Cmd) {
 		return m, func() tea.Msg { return SetupDoneMsg{Cfg: cfg} }
 	case tea.KeyEsc:
 		m.step = stepRSSURL
-		m.inputs[stepRSSURL].Focus()
+		m.inputs[int(stepRSSURL)-1].Focus()
 		return m, textinput.Blink
 	}
 
@@ -237,27 +274,31 @@ func (m wizardModel) handleTextInputKey(msg tea.KeyMsg) (wizardModel, tea.Cmd) {
 				return m, nil
 			}
 			m.err = ""
-			m.inputs[m.step].Blur()
+			m.inputs[m.textIdx()].Blur()
 			m.step++
 			if m.step == stepPanels {
-				return m, nil // panel step needs no text-input focus
+				return m, nil
 			}
-			if int(m.step) < len(m.inputs) {
-				m.inputs[m.step].Focus()
-				return m, textinput.Blink
-			}
-		}
-	case tea.KeyEsc:
-		if m.step > 0 {
-			m.err = ""
-			m.inputs[m.step].Blur()
-			m.step--
-			m.inputs[m.step].Focus()
+			m.inputs[m.textIdx()].Focus()
 			return m, textinput.Blink
 		}
+	case tea.KeyEsc:
+		m.err = ""
+		m.inputs[m.textIdx()].Blur()
+		m.step--
+		// If local backend, skip GitHub steps when going backward
+		if m.todoBackend == "local" && (m.step == stepGitHubRepo || m.step == stepGitHubToken) {
+			m.step = stepTodoBackend
+			return m, nil
+		}
+		if m.step == stepTodoBackend {
+			return m, nil
+		}
+		m.inputs[m.textIdx()].Focus()
+		return m, textinput.Blink
 	default:
-		if int(m.step) < len(m.inputs) {
-			m.inputs[m.step], cmd = m.inputs[m.step].Update(msg)
+		if m.textIdx() < len(m.inputs) {
+			m.inputs[m.textIdx()], cmd = m.inputs[m.textIdx()].Update(msg)
 		}
 	}
 	return m, cmd
@@ -282,6 +323,38 @@ func (m wizardModel) View() string {
 		Padding(1, 2).
 		Width(60)
 
+	// --- Backend selection step ---
+	if m.step == stepTodoBackend {
+		progress := fmt.Sprintf("Step 1 / %d", int(stepDone))
+
+		githubLine := "    github  — GitHub Issues (requires token)"
+		localLine := "    local   — Local file (~/.config/today-tui/todos.json)"
+		if m.todoBackend == "github" {
+			githubLine = "  ▶ " + lipgloss.NewStyle().Bold(true).Render("github") + "  — GitHub Issues (requires token)"
+		} else {
+			localLine = "  ▶ " + lipgloss.NewStyle().Bold(true).Render("local") + "   — Local file (~/.config/today-tui/todos.json)"
+		}
+
+		lines := []string{
+			headerStyle.Render("today-tui — First Launch Setup"),
+			dimStyle.Render(progress),
+			"",
+			boldStyle.Render("Todo Backend"),
+			dimStyle.Render("Where should todos be stored?"),
+			"",
+			githubLine,
+			localLine,
+		}
+		if m.err != "" {
+			lines = append(lines, "", errStyle.Render("Error: "+m.err))
+		}
+		footer := dimStyle.Render("j/k: select  •  Enter: confirm  •  Ctrl+C: quit")
+		content := boxStyle.Render(strings.Join(lines, "\n"))
+		full := lipgloss.JoinVertical(lipgloss.Left, content, "", footer)
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, full)
+	}
+
+	// --- Panels step ---
 	if m.step == stepPanels {
 		progress := fmt.Sprintf("Step %d / %d", int(stepPanels)+1, int(stepDone))
 
@@ -326,9 +399,9 @@ func (m wizardModel) View() string {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, full)
 	}
 
-	step := int(m.step)
-	p := wizardPrompts[step]
-	progress := fmt.Sprintf("Step %d / %d", step+1, int(stepDone))
+	// --- Text input steps ---
+	p := wizardPrompts[m.textIdx()]
+	progress := fmt.Sprintf("Step %d / %d", int(m.step)+1, int(stepDone))
 
 	lines := []string{
 		headerStyle.Render("today-tui — First Launch Setup"),
@@ -337,7 +410,7 @@ func (m wizardModel) View() string {
 		boldStyle.Render(p.title),
 		dimStyle.Render(p.hint),
 		"",
-		m.inputs[step].View(),
+		m.inputs[m.textIdx()].View(),
 	}
 	if m.err != "" {
 		lines = append(lines, "", errStyle.Render("Error: "+m.err))
