@@ -20,7 +20,10 @@ type LocalTodoClient struct {
 var _ TodoBackend = (*LocalTodoClient)(nil)
 
 func NewLocalTodoClient() *LocalTodoClient {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		home = "."
+	}
 	return &LocalTodoClient{
 		path: filepath.Join(home, ".config", "today-tui", "todos.json"),
 	}
