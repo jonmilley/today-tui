@@ -236,7 +236,9 @@ func (p todoPane) handleNavigationKey(msg tea.KeyMsg) (todoPane, tea.Cmd) {
 		}
 	case keyEnter:
 		if p.selected < len(p.issues) {
-			openBrowser(p.issues[p.selected].HTMLURL)
+			if url := p.issues[p.selected].HTMLURL; url != "" {
+				openBrowser(url)
+			}
 		}
 	case "c":
 		if p.selected < len(p.issues) {
@@ -380,7 +382,11 @@ func (p todoPane) View() string {
 		if p.status != "" {
 			statusLine = dimStyle.Render("  " + p.status)
 		}
-		hint := dimStyle.Render("  n: new  j/k: nav  c: close  Enter: open  r: refresh")
+		hintOpen := ""
+		if p.selected < len(p.issues) && p.issues[p.selected].HTMLURL != "" {
+			hintOpen = "  Enter: open"
+		}
+		hint := dimStyle.Render("  n: new  j/k: nav  c: close" + hintOpen + "  r: refresh")
 		if p.confirming {
 			hint = dimStyle.Render("  y: yes  n/Esc: cancel")
 		}
