@@ -327,7 +327,6 @@ func (m wizardModel) View() string {
 
 		githubLine := "    github  — GitHub Issues (requires token)"
 		localLine := "    local   — Local file (~/.config/today-tui/todos.json)"
-		boldStyle := lipgloss.NewStyle().Bold(true)
 		if m.todoBackend == todoBackendGitHub {
 			githubLine = "  ▶ " + boldStyle.Render(todoBackendGitHub) + "  — GitHub Issues (requires token)"
 		} else {
