@@ -78,7 +78,7 @@ func newWizard() wizardModel {
 	}
 	return wizardModel{
 		step:        stepTodoBackend,
-		todoBackend: "github",
+		todoBackend: todoBackendGitHub,
 		inputs:      inputs,
 		panels:      config.PanelConfig{Todo: true, Weather: true, Stocks: true, Stats: true, News: true},
 	}
@@ -91,10 +91,10 @@ func newWizardFrom(cfg *config.Config) wizardModel {
 	if cfg == nil {
 		return m
 	}
-	if cfg.TodoBackend == "local" {
-		m.todoBackend = "local"
+	if cfg.TodoBackend == todoBackendLocal {
+		m.todoBackend = todoBackendLocal
 	} else {
-		m.todoBackend = "github"
+		m.todoBackend = todoBackendGitHub
 	}
 	m.inputs[0].SetValue(cfg.GitHubRepo)
 	m.inputs[1].SetValue(cfg.GitHubToken)
@@ -215,12 +215,12 @@ func (m wizardModel) handleKeyMsg(msg tea.KeyMsg) (wizardModel, tea.Cmd) {
 func (m wizardModel) handleBackendStepKey(msg tea.KeyMsg) (wizardModel, tea.Cmd) {
 	switch msg.String() {
 	case "j", keyDown:
-		m.todoBackend = "local"
+		m.todoBackend = todoBackendLocal
 	case "k", keyUp:
-		m.todoBackend = "github"
+		m.todoBackend = todoBackendGitHub
 	case "enter":
 		m.err = ""
-		if m.todoBackend == "local" {
+		if m.todoBackend == todoBackendLocal {
 			m.step = stepWeatherKey
 		} else {
 			m.step = stepGitHubRepo
@@ -285,7 +285,7 @@ func (m wizardModel) handleTextInputKey(msg tea.KeyMsg) (wizardModel, tea.Cmd) {
 		m.inputs[m.textIdx()].Blur()
 		m.step--
 		// If local backend, skip GitHub steps when going backward
-		if m.todoBackend == "local" && (m.step == stepGitHubRepo || m.step == stepGitHubToken) {
+		if m.todoBackend == todoBackendLocal && (m.step == stepGitHubRepo || m.step == stepGitHubToken) {
 			m.step = stepTodoBackend
 			return m, nil
 		}
@@ -327,10 +327,12 @@ func (m wizardModel) View() string {
 
 		githubLine := "    github  — GitHub Issues (requires token)"
 		localLine := "    local   — Local file (~/.config/today-tui/todos.json)"
-		if m.todoBackend == "github" {
-			githubLine = "  ▶ " + lipgloss.NewStyle().Bold(true).Render("github") + "  — GitHub Issues (requires token)"
+		boldStyle := lipgloss.NewStyle().Bold(true)
+		if m.todoBackend == todoBackendGitHub {
+			githubLine = "  ▶ " + boldStyle.Render(todoBackendGitHub) + "  — GitHub Issues (requires token)"
 		} else {
-			localLine = "  ▶ " + lipgloss.NewStyle().Bold(true).Render("local") + "   — Local file (~/.config/today-tui/todos.json)"
+			localLine = "  ▶ " + boldStyle.Render(todoBackendLocal) +
+				"   — Local file (~/.config/today-tui/todos.json)"
 		}
 
 		lines := []string{

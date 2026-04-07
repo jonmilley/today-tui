@@ -29,6 +29,11 @@ const (
 	paneCount
 )
 
+const (
+	todoBackendLocal  = "local"
+	todoBackendGitHub = "github"
+)
+
 // refreshTickMsg triggers periodic data refresh for slow-updating panes.
 type refreshTickMsg struct{}
 
@@ -40,7 +45,7 @@ type Deps struct {
 }
 
 func (d *Deps) Refresh(cfg *config.Config) {
-	if cfg.TodoBackend == "local" {
+	if cfg.TodoBackend == todoBackendLocal {
 		d.Todo = api.NewLocalTodoClient()
 	} else {
 		d.Todo = api.NewGitHubClient(cfg.GitHubToken, cfg.GitHubRepo)
