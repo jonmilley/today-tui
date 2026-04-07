@@ -213,8 +213,12 @@ func (m wizardModel) handleKeyMsg(msg tea.KeyMsg) (wizardModel, tea.Cmd) {
 }
 
 func (m wizardModel) handleBackendStepKey(msg tea.KeyMsg) (wizardModel, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEnter:
+	switch msg.String() {
+	case "j", keyDown:
+		m.todoBackend = "local"
+	case "k", keyUp:
+		m.todoBackend = "github"
+	case "enter":
 		m.err = ""
 		if m.todoBackend == "local" {
 			m.step = stepWeatherKey
@@ -223,12 +227,6 @@ func (m wizardModel) handleBackendStepKey(msg tea.KeyMsg) (wizardModel, tea.Cmd)
 		}
 		m.inputs[m.textIdx()].Focus()
 		return m, textinput.Blink
-	}
-	switch msg.String() {
-	case "j", keyDown:
-		m.todoBackend = "local"
-	case "k", keyUp:
-		m.todoBackend = "github"
 	}
 	return m, nil
 }
@@ -245,7 +243,7 @@ func (m wizardModel) handlePanelStepKey(msg tea.KeyMsg) (wizardModel, tea.Cmd) {
 		return m, func() tea.Msg { return SetupDoneMsg{Cfg: cfg} }
 	case tea.KeyEsc:
 		m.step = stepRSSURL
-		m.inputs[int(stepRSSURL)-1].Focus()
+		m.inputs[m.textIdx()].Focus()
 		return m, textinput.Blink
 	}
 
