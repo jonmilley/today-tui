@@ -82,10 +82,32 @@ type App struct {
 	height  int
 	ready   bool
 
+	// rects records each visible pane's screen position so mouse events
+	// can be hit-tested. Recomputed on every resize.
+	rects []paneRect
+
 	// status surfaces transient app-level messages (e.g. config save
 	// failures) in the status bar. Cleared on the next pane-toggle or
 	// config-close interaction.
 	status string
+}
+
+// paneRect is the screen-coordinate bounding box of one rendered pane.
+type paneRect struct {
+	pane       int
+	x, y, w, h int
+}
+
+// paneAt returns the pane id whose rendered rect contains the given screen
+// coordinates. The bool is false when the click landed outside any pane
+// (e.g. on the status bar).
+func (a *App) paneAt(x, y int) (int, bool) {
+	for _, r := range a.rects {
+		if x >= r.x && x < r.x+r.w && y >= r.y && y < r.y+r.h {
+			return r.pane, true
+		}
+	}
+	return 0, false
 }
 
 func NewApp(cfg *config.Config, deps Deps) App {
@@ -170,6 +192,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case configClosedMsg:
 		return a.handleConfigClosed(msg), nil
+
+	case tea.MouseMsg:
+		return a.handleMouseMsg(msg)
 
 	case tea.KeyMsg:
 		return a.handleKeyMsg(msg)
@@ -341,6 +366,52 @@ func (a App) dispatchToPanes(msg tea.Msg) (App, tea.Cmd) {
 	return a, tea.Batch(cmds...)
 }
 
+// handleMouseMsg routes mouse events to the pane under the cursor. Wheel
+// events scroll that pane regardless of focus; left-button presses move
+// focus to the clicked pane and forward the press through. All other
+// mouse events (motion, release, other buttons) are ignored.
+func (a App) handleMouseMsg(msg tea.MouseMsg) (App, tea.Cmd) {
+	if a.mode != modeDash {
+		return a, nil
+	}
+	pane, ok := a.paneAt(msg.X, msg.Y)
+	if !ok {
+		return a, nil
+	}
+	switch {
+	case tea.MouseEvent(msg).IsWheel():
+		return a.routeMouseToPane(pane, msg)
+	case msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft:
+		if a.focused != pane {
+			a.setFocus(pane)
+		}
+		return a.routeMouseToPane(pane, msg)
+	}
+	return a, nil
+}
+
+// routeMouseToPane forwards a single mouse event to one specific pane's
+// Update — distinct from dispatchToPanes which broadcasts to all panes —
+// so wheel events scroll only the pane being hovered, not every viewport.
+func (a App) routeMouseToPane(pane int, msg tea.MouseMsg) (App, tea.Cmd) {
+	var cmd tea.Cmd
+	switch pane {
+	case paneTodo:
+		a.todo, cmd = a.todo.Update(msg)
+	case paneCalendar:
+		a.calendar, cmd = a.calendar.Update(msg)
+	case paneWeather:
+		a.weather, cmd = a.weather.Update(msg)
+	case paneStocks:
+		a.stocks, cmd = a.stocks.Update(msg)
+	case paneStats:
+		a.stats, cmd = a.stats.Update(msg)
+	case paneNews:
+		a.news, cmd = a.news.Update(msg)
+	}
+	return a, cmd
+}
+
 func (a *App) dispatchKey(msg tea.KeyMsg) tea.Cmd {
 	var cmd tea.Cmd
 	switch a.focused {
@@ -461,24 +532,32 @@ func (a *App) setPaneSize(pane, w, h int) {
 	}
 }
 
-func (a *App) layoutRow(panes []int, totalW, h int) {
+// placePane sets a pane's size and records its screen rect for mouse
+// hit-testing. Origin (x, y) is in cells from the top-left of the screen.
+func (a *App) placePane(pane, x, y, w, h int) {
+	a.rects = append(a.rects, paneRect{pane: pane, x: x, y: y, w: w, h: h})
+	a.setPaneSize(pane, w, h)
+}
+
+func (a *App) layoutRow(panes []int, x, y, totalW, h int) {
 	if len(panes) == 0 || h == 0 {
 		return
 	}
 	if len(panes) == 1 {
-		a.setPaneSize(panes[0], totalW, h)
+		a.placePane(panes[0], x, y, totalW, h)
 		return
 	}
 	w1 := totalW / 2
 	w2 := totalW - w1
-	a.setPaneSize(panes[0], w1, h)
-	a.setPaneSize(panes[1], w2, h)
+	a.placePane(panes[0], x, y, w1, h)
+	a.placePane(panes[1], x+w1, y, w2, h)
 }
 
 func (a *App) resizePanes() {
 	if a.width == 0 || a.height == 0 {
 		return
 	}
+	a.rects = a.rects[:0]
 	statusH := 1
 	availH := a.height - statusH
 
@@ -486,7 +565,7 @@ func (a *App) resizePanes() {
 	rightVisible := a.visibleRightPanes()
 
 	leftW, rightW := splitColumns(a.width, len(leftVisible) > 0, len(rightVisible) > 0)
-	a.layoutLeftColumn(leftVisible, leftW, availH)
+	a.layoutLeftColumn(leftVisible, 0, 0, leftW, availH)
 
 	n := len(rightVisible)
 	if n == 0 || rightW == 0 {
@@ -508,9 +587,9 @@ func (a *App) resizePanes() {
 		r2 = rightVisible[2:]
 	}
 
-	a.layoutRow(r1, rightW, topH)
+	a.layoutRow(r1, leftW, 0, rightW, topH)
 	if len(r2) > 0 {
-		a.layoutRow(r2, rightW, botH)
+		a.layoutRow(r2, leftW, topH, rightW, botH)
 	}
 
 	a.syncFocus()
@@ -533,23 +612,26 @@ func splitColumns(total int, leftHasPanes, rightHasPanes bool) (int, int) {
 	}
 }
 
-// layoutLeftColumn stacks the left panes vertically, splitting availH evenly
-// (last pane absorbs the remainder so the column fills exactly).
-func (a *App) layoutLeftColumn(panes []int, w, availH int) {
+// layoutLeftColumn stacks the left panes vertically starting at (x, y),
+// splitting availH evenly (last pane absorbs the remainder so the column
+// fills exactly).
+func (a *App) layoutLeftColumn(panes []int, x, y, w, availH int) {
 	if len(panes) == 0 || w == 0 {
 		return
 	}
 	if len(panes) == 1 {
-		a.setPaneSize(panes[0], w, availH)
+		a.placePane(panes[0], x, y, w, availH)
 		return
 	}
 	per := availH / len(panes)
+	cy := y
 	for i, p := range panes {
 		h := per
 		if i == len(panes)-1 {
 			h = availH - per*(len(panes)-1)
 		}
-		a.setPaneSize(p, w, h)
+		a.placePane(p, x, cy, w, h)
+		cy += h
 	}
 }
 
