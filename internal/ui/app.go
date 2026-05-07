@@ -77,6 +77,11 @@ type App struct {
 	width   int
 	height  int
 	ready   bool
+
+	// status surfaces transient app-level messages (e.g. config save
+	// failures) in the status bar. Cleared on the next pane-toggle or
+	// config-close interaction.
+	status string
 }
 
 func NewApp(cfg *config.Config, deps Deps) App {
@@ -240,7 +245,11 @@ func (a App) handleSetupDone(msg SetupDoneMsg) (App, tea.Cmd) {
 
 func (a App) handleConfigClosed(msg configClosedMsg) App {
 	a.cfg.Panels = msg.panels
-	_ = a.cfg.Save()
+	if err := a.cfg.Save(); err != nil {
+		a.status = "Save failed: " + err.Error()
+	} else {
+		a.status = ""
+	}
 	a.mode = modeDash
 	a.ensureFocusVisible()
 	a.resizePanes()
@@ -566,18 +575,26 @@ func (a App) View() string {
 		main = right
 	}
 
-	statusBar := buildStatusBar(a.width, a.focused)
+	statusBar := buildStatusBar(a.width, a.focused, a.status)
 	return lipgloss.JoinVertical(lipgloss.Left, main, statusBar)
 }
 
-func buildStatusBar(w, focused int) string {
+func buildStatusBar(w, focused int, status string) string {
 	paneNames := []string{"Todo", "Weather", "Stocks", "Stats", "News"}
 	name := ""
 	if focused >= 0 && focused < len(paneNames) {
 		name = paneNames[focused]
 	}
 	left := dimStyle.Render("  Tab: next pane  ,: panels  q: quit  r: refresh")
-	right := dimStyle.Render("Focus: " + name + "  ")
+	// Right side normally shows the focused pane name, but if there's a
+	// transient app-level status message (e.g. config save failure), show
+	// that instead in the error color.
+	var right string
+	if status != "" {
+		right = errStyle.Render(truncate(status, w/2) + "  ")
+	} else {
+		right = dimStyle.Render("Focus: " + name + "  ")
+	}
 	gap := w - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 0 {
 		gap = 0
