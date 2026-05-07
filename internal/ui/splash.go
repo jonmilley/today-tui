@@ -18,9 +18,15 @@ type splashModel struct {
 	now       time.Time
 }
 
+// splashDurationSecs is how long the splash lingers before auto-dismissing.
+// Any key (other than ctrl+c/q which quit) also skips it. Keep this short:
+// dashboard fetches run during the splash, so the user is paying for it twice
+// if it's long.
+const splashDurationSecs = 2
+
 func newSplash() splashModel {
 	return splashModel{
-		remaining: 5,
+		remaining: splashDurationSecs,
 		now:       time.Now(),
 	}
 }
@@ -57,7 +63,7 @@ func (s splashModel) View() string {
 	greeting := timeGreeting(now)
 	date := now.Format("Monday, January 2, 2006")
 	clock := now.Format("3:04:05 PM")
-	dismiss := fmt.Sprintf("Dismissing in %ds...", s.remaining)
+	dismiss := fmt.Sprintf("Continuing in %ds  ·  press any key to skip", s.remaining)
 
 	appNameStyle := lipgloss.NewStyle().
 		Bold(true).

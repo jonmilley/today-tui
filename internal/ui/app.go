@@ -80,17 +80,25 @@ type App struct {
 }
 
 func NewApp(cfg *config.Config, deps Deps) App {
-	return App{
+	a := App{
 		mode:   modeSplash,
 		splash: newSplash(),
 		wizard: newWizard(),
 		cfg:    cfg,
 		deps:   deps,
 	}
+	// When config is already present, pre-seed the dashboard panes so their
+	// initial fetches can run during the splash rather than after it.
+	if cfg != nil {
+		a.deps.Refresh(cfg)
+		a.seedDashPanes()
+	}
+	return a
 }
 
 // NewReconfigureApp launches the setup wizard pre-populated with values from
 // an existing config so the user can edit rather than re-enter everything.
+// Panes are not pre-seeded since the user is about to change credentials.
 func NewReconfigureApp(existing *config.Config, deps Deps) App {
 	return App{
 		mode:   modeSplash,
@@ -100,21 +108,24 @@ func NewReconfigureApp(existing *config.Config, deps Deps) App {
 	}
 }
 
-func buildDash(cfg *config.Config, deps Deps) App {
-	return App{
-		mode:    modeDash,
-		cfg:     cfg,
-		deps:    deps,
-		todo:    newTodoPane(deps.Todo),
-		weather: newWeatherPane(deps.Weather, cfg.WeatherCity, cfg.Units),
-		stocks:  newStocksPane(deps.Stocks, cfg.Stocks),
-		stats:   newStatsPane(),
-		news:    newNewsPane(deps.News, cfg.RSSFeedURL),
-		focused: paneTodo,
-	}
+// seedDashPanes builds the dashboard pane state in place. Used both when
+// transitioning out of splash with a pre-existing config and when finishing
+// the setup wizard. Caller must ensure a.cfg and a.deps are populated.
+func (a *App) seedDashPanes() {
+	a.todo = newTodoPane(a.deps.Todo)
+	a.weather = newWeatherPane(a.deps.Weather, a.cfg.WeatherCity, a.cfg.Units)
+	a.stocks = newStocksPane(a.deps.Stocks, a.cfg.Stocks)
+	a.stats = newStatsPane()
+	a.news = newNewsPane(a.deps.News, a.cfg.RSSFeedURL)
+	a.focused = paneTodo
 }
 
 func (a App) Init() tea.Cmd {
+	// If panes were pre-seeded, kick off their initial fetches now so data
+	// is loading in the background while the splash ticks.
+	if a.cfg != nil {
+		return tea.Batch(a.splash.Init(), a.initPanes())
+	}
 	return a.splash.Init()
 }
 
@@ -154,9 +165,16 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if a.mode == modeSplash {
-		var cmd tea.Cmd
-		a.splash, cmd = a.splash.Update(msg)
-		return a, cmd
+		var splashCmd tea.Cmd
+		a.splash, splashCmd = a.splash.Update(msg)
+		// If panes were pre-seeded, also let them process background results
+		// (fetch responses, refresh ticks) while the splash is showing.
+		if a.cfg != nil {
+			var paneCmd tea.Cmd
+			a, paneCmd = a.dispatchToPanes(msg)
+			return a, tea.Batch(splashCmd, paneCmd)
+		}
+		return a, splashCmd
 	}
 
 	if a.mode == modeSetup {
@@ -176,6 +194,11 @@ func (a App) handleWindowSize(msg tea.WindowSizeMsg) App {
 	case modeSplash:
 		a.splash.width = msg.Width
 		a.splash.height = msg.Height
+		// Pre-seeded panes need a size so background-rendered content is
+		// laid out correctly when we flip to the dashboard.
+		if a.cfg != nil {
+			a.resizePanes()
+		}
 	case modeSetup:
 		a.wizard.width = msg.Width
 		a.wizard.height = msg.Height
@@ -195,22 +218,21 @@ func (a App) handleSplashDone() (App, tea.Cmd) {
 		a.wizard.height = a.height
 		return a, a.wizard.Init()
 	}
-	w, h, ready := a.width, a.height, a.ready
-	a.deps.Refresh(a.cfg)
-	a = buildDash(a.cfg, a.deps)
-	a.width, a.height, a.ready = w, h, ready
-	if ready {
+	// Panes were seeded and their fetches kicked off in NewApp; just flip
+	// to the dashboard. resizePanes was already called on window-size.
+	a.mode = modeDash
+	if a.ready {
 		a.resizePanes()
 	}
-	return a, a.initPanes()
+	return a, nil
 }
 
 func (a App) handleSetupDone(msg SetupDoneMsg) (App, tea.Cmd) {
-	w, h, ready := a.width, a.height, a.ready
+	a.cfg = msg.Cfg
 	a.deps.Refresh(msg.Cfg)
-	a = buildDash(msg.Cfg, a.deps)
-	a.width, a.height, a.ready = w, h, ready
-	if ready {
+	a.seedDashPanes()
+	a.mode = modeDash
+	if a.ready {
 		a.resizePanes()
 	}
 	return a, a.initPanes()
