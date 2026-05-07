@@ -50,6 +50,13 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Decode top-level keys into RawMessages so we can distinguish between
+	// "panels key absent" (apply defaults) and "panels explicitly all-false"
+	// (respect the user's choice to hide everything).
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, err
@@ -60,8 +67,7 @@ func Load() (*Config, error) {
 	if cfg.Units != "C" {
 		cfg.Units = "F" // default to Fahrenheit
 	}
-	// Default all panels to enabled if none are set
-	if !cfg.Panels.Todo && !cfg.Panels.Weather && !cfg.Panels.Stocks && !cfg.Panels.Stats && !cfg.Panels.News {
+	if _, hasPanels := raw["panels"]; !hasPanels {
 		cfg.Panels = PanelConfig{Todo: true, Weather: true, Stocks: true, Stats: true, News: true}
 	}
 	return &cfg, nil
