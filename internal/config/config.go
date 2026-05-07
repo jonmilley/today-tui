@@ -7,11 +7,12 @@ import (
 )
 
 type PanelConfig struct {
-	Todo    bool `json:"todo"`
-	Weather bool `json:"weather"`
-	Stocks  bool `json:"stocks"`
-	Stats   bool `json:"stats"`
-	News    bool `json:"news"`
+	Todo     bool `json:"todo"`
+	Calendar bool `json:"calendar"`
+	Weather  bool `json:"weather"`
+	Stocks   bool `json:"stocks"`
+	Stats    bool `json:"stats"`
+	News     bool `json:"news"`
 }
 
 type Config struct {
@@ -23,6 +24,7 @@ type Config struct {
 	Units         string      `json:"units"` // "F" or "C"
 	Stocks        []string    `json:"stocks"`
 	RSSFeedURL    string      `json:"rss_feed_url"`
+	CalendarURL   string      `json:"calendar_url"` // ICS URL or local file path
 	Panels        PanelConfig `json:"panels"`
 }
 
@@ -68,7 +70,9 @@ func Load() (*Config, error) {
 		cfg.Units = "F" // default to Fahrenheit
 	}
 	if _, hasPanels := raw["panels"]; !hasPanels {
-		cfg.Panels = PanelConfig{Todo: true, Weather: true, Stocks: true, Stats: true, News: true}
+		cfg.Panels = PanelConfig{
+			Todo: true, Calendar: true, Weather: true, Stocks: true, Stats: true, News: true,
+		}
 	}
 	return &cfg, nil
 }

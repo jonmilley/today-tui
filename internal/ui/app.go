@@ -22,6 +22,7 @@ const (
 
 const (
 	paneTodo = iota
+	paneCalendar
 	paneWeather
 	paneStocks
 	paneStats
@@ -38,10 +39,11 @@ const (
 type refreshTickMsg struct{}
 
 type Deps struct {
-	Todo    api.TodoBackend
-	Weather api.Weather
-	Stocks  api.Stocks
-	News    api.News
+	Todo     api.TodoBackend
+	Calendar api.Calendar
+	Weather  api.Weather
+	Stocks   api.Stocks
+	News     api.News
 }
 
 func (d *Deps) Refresh(cfg *config.Config) {
@@ -51,6 +53,7 @@ func (d *Deps) Refresh(cfg *config.Config) {
 		d.Todo = api.NewGitHubClient(cfg.GitHubToken, cfg.GitHubRepo)
 	}
 	d.Weather = api.NewWeatherClient(cfg.WeatherAPIKey)
+	d.Calendar = api.NewICSClient(cfg.CalendarURL)
 	if d.Stocks == nil {
 		d.Stocks = api.NewYahooClient()
 	}
@@ -67,11 +70,12 @@ type App struct {
 	cfg          *config.Config
 	deps         Deps
 
-	todo    todoPane
-	weather weatherPane
-	stocks  stocksPane
-	stats   statsPane
-	news    newsPane
+	todo     todoPane
+	calendar calendarPane
+	weather  weatherPane
+	stocks   stocksPane
+	stats    statsPane
+	news     newsPane
 
 	focused int
 	width   int
@@ -118,6 +122,7 @@ func NewReconfigureApp(existing *config.Config, deps Deps) App {
 // the setup wizard. Caller must ensure a.cfg and a.deps are populated.
 func (a *App) seedDashPanes() {
 	a.todo = newTodoPane(a.deps.Todo)
+	a.calendar = newCalendarPane(a.deps.Calendar, a.cfg.CalendarURL)
 	a.weather = newWeatherPane(a.deps.Weather, a.cfg.WeatherCity, a.cfg.Units)
 	a.stocks = newStocksPane(a.deps.Stocks, a.cfg.Stocks)
 	a.stats = newStatsPane()
@@ -137,6 +142,7 @@ func (a App) Init() tea.Cmd {
 func (a App) initPanes() tea.Cmd {
 	return tea.Batch(
 		a.todo.Init(),
+		a.calendar.Init(),
 		a.weather.Init(),
 		a.stocks.Init(),
 		a.stats.Init(),
@@ -306,6 +312,9 @@ func (a App) dispatchToPanes(msg tea.Msg) (App, tea.Cmd) {
 	a.todo, cmd = a.todo.Update(msg)
 	cmds = append(cmds, cmd)
 
+	a.calendar, cmd = a.calendar.Update(msg)
+	cmds = append(cmds, cmd)
+
 	a.weather, cmd = a.weather.Update(msg)
 	cmds = append(cmds, cmd)
 
@@ -321,6 +330,7 @@ func (a App) dispatchToPanes(msg tea.Msg) (App, tea.Cmd) {
 	// Periodic refresh
 	if _, ok := msg.(refreshTickMsg); ok {
 		cmds = append(cmds,
+			func() tea.Msg { return fetchCalendarMsg{} },
 			func() tea.Msg { return fetchWeatherMsg{} },
 			func() tea.Msg { return fetchStocksMsg{} },
 			func() tea.Msg { return fetchNewsMsg{} },
@@ -336,6 +346,8 @@ func (a *App) dispatchKey(msg tea.KeyMsg) tea.Cmd {
 	switch a.focused {
 	case paneTodo:
 		a.todo, cmd = a.todo.Update(msg)
+	case paneCalendar:
+		a.calendar, cmd = a.calendar.Update(msg)
 	case paneWeather:
 		a.weather, cmd = a.weather.Update(msg)
 	case paneStocks:
@@ -350,20 +362,20 @@ func (a *App) dispatchKey(msg tea.KeyMsg) tea.Cmd {
 
 func (a *App) visiblePanes() []int {
 	var panes []int
+	panes = append(panes, a.visibleLeftPanes()...)
+	panes = append(panes, a.visibleRightPanes()...)
+	return panes
+}
+
+// visibleLeftPanes returns the list-shaped panes that stack vertically on
+// the left half of the dashboard.
+func (a *App) visibleLeftPanes() []int {
+	var panes []int
 	if a.cfg.Panels.Todo {
 		panes = append(panes, paneTodo)
 	}
-	if a.cfg.Panels.Weather {
-		panes = append(panes, paneWeather)
-	}
-	if a.cfg.Panels.Stocks {
-		panes = append(panes, paneStocks)
-	}
-	if a.cfg.Panels.Stats {
-		panes = append(panes, paneStats)
-	}
-	if a.cfg.Panels.News {
-		panes = append(panes, paneNews)
+	if a.cfg.Panels.Calendar {
+		panes = append(panes, paneCalendar)
 	}
 	return panes
 }
@@ -425,6 +437,7 @@ func (a *App) setFocus(p int) {
 
 func (a *App) syncFocus() {
 	a.todo.SetFocused(a.focused == paneTodo)
+	a.calendar.SetFocused(a.focused == paneCalendar)
 	a.weather.SetFocused(a.focused == paneWeather)
 	a.stocks.SetFocused(a.focused == paneStocks)
 	a.stats.SetFocused(a.focused == paneStats)
@@ -433,6 +446,10 @@ func (a *App) syncFocus() {
 
 func (a *App) setPaneSize(pane, w, h int) {
 	switch pane {
+	case paneTodo:
+		a.todo.SetSize(w, h)
+	case paneCalendar:
+		a.calendar.SetSize(w, h)
 	case paneWeather:
 		a.weather.SetSize(w, h)
 	case paneStocks:
@@ -465,19 +482,11 @@ func (a *App) resizePanes() {
 	statusH := 1
 	availH := a.height - statusH
 
+	leftVisible := a.visibleLeftPanes()
 	rightVisible := a.visibleRightPanes()
 
-	rightW := a.width
-	if a.cfg.Panels.Todo {
-		todoW := a.width
-		if len(rightVisible) > 0 {
-			todoW = a.width * 2 / 5
-			rightW = a.width - todoW
-		} else {
-			rightW = 0
-		}
-		a.todo.SetSize(todoW, availH)
-	}
+	leftW, rightW := splitColumns(a.width, len(leftVisible) > 0, len(rightVisible) > 0)
+	a.layoutLeftColumn(leftVisible, leftW, availH)
 
 	n := len(rightVisible)
 	if n == 0 || rightW == 0 {
@@ -507,8 +516,49 @@ func (a *App) resizePanes() {
 	a.syncFocus()
 }
 
+// splitColumns returns (leftW, rightW) for the dashboard. When both columns
+// are present the left takes 2/5 (matching the original Todo-only ratio).
+// When only one side is present it takes the full width.
+func splitColumns(total int, leftHasPanes, rightHasPanes bool) (int, int) {
+	switch {
+	case leftHasPanes && rightHasPanes:
+		left := total * 2 / 5
+		return left, total - left
+	case leftHasPanes:
+		return total, 0
+	case rightHasPanes:
+		return 0, total
+	default:
+		return 0, 0
+	}
+}
+
+// layoutLeftColumn stacks the left panes vertically, splitting availH evenly
+// (last pane absorbs the remainder so the column fills exactly).
+func (a *App) layoutLeftColumn(panes []int, w, availH int) {
+	if len(panes) == 0 || w == 0 {
+		return
+	}
+	if len(panes) == 1 {
+		a.setPaneSize(panes[0], w, availH)
+		return
+	}
+	per := availH / len(panes)
+	for i, p := range panes {
+		h := per
+		if i == len(panes)-1 {
+			h = availH - per*(len(panes)-1)
+		}
+		a.setPaneSize(p, w, h)
+	}
+}
+
 func (a App) paneView(pane int) string {
 	switch pane {
+	case paneTodo:
+		return a.todo.View()
+	case paneCalendar:
+		return a.calendar.View()
 	case paneWeather:
 		return a.weather.View()
 	case paneStocks:
@@ -543,11 +593,16 @@ func (a App) View() string {
 		return a.configEditor.View()
 	}
 
+	leftVisible := a.visibleLeftPanes()
 	rightVisible := a.visibleRightPanes()
 
 	var left string
-	if a.cfg.Panels.Todo {
-		left = a.todo.View()
+	if len(leftVisible) > 0 {
+		views := make([]string, len(leftVisible))
+		for i, p := range leftVisible {
+			views[i] = a.paneView(p)
+		}
+		left = lipgloss.JoinVertical(lipgloss.Left, views...)
 	}
 
 	var right string
@@ -580,7 +635,7 @@ func (a App) View() string {
 }
 
 func buildStatusBar(w, focused int, status string) string {
-	paneNames := []string{"Todo", "Weather", "Stocks", "Stats", "News"}
+	paneNames := []string{"Todo", "Calendar", "Weather", "Stocks", "Stats", "News"}
 	name := ""
 	if focused >= 0 && focused < len(paneNames) {
 		name = paneNames[focused]

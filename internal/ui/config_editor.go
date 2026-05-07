@@ -18,10 +18,35 @@ type panelToggle struct {
 
 var panelToggles = []panelToggle{
 	{"Todo", panelTodo},
+	{"Calendar", panelCalendar},
 	{"Weather", panelWeather},
 	{"Stocks", panelStocks},
 	{"Stats", panelStats},
 	{"News", panelNews},
+}
+
+// panelByIndex returns a pointer to the bool field in p that backs the
+// panelToggles entry at idx, or nil for an unknown index. Used by both the
+// runtime config editor and the setup wizard to toggle/inspect panels.
+func panelByIndex(p *config.PanelConfig, idx int) *bool {
+	if idx < 0 || idx >= len(panelToggles) {
+		return nil
+	}
+	switch panelToggles[idx].key {
+	case panelTodo:
+		return &p.Todo
+	case panelCalendar:
+		return &p.Calendar
+	case panelWeather:
+		return &p.Weather
+	case panelStocks:
+		return &p.Stocks
+	case panelStats:
+		return &p.Stats
+	case panelNews:
+		return &p.News
+	}
+	return nil
 }
 
 type configEditor struct {
@@ -36,33 +61,15 @@ func newConfigEditor(panels config.PanelConfig) configEditor {
 }
 
 func (e configEditor) isEnabled(idx int) bool {
-	switch panelToggles[idx].key {
-	case panelTodo:
-		return e.panels.Todo
-	case panelWeather:
-		return e.panels.Weather
-	case panelStocks:
-		return e.panels.Stocks
-	case panelStats:
-		return e.panels.Stats
-	case panelNews:
-		return e.panels.News
+	if p := panelByIndex(&e.panels, idx); p != nil {
+		return *p
 	}
 	return false
 }
 
 func (e *configEditor) toggle(idx int) {
-	switch panelToggles[idx].key {
-	case panelTodo:
-		e.panels.Todo = !e.panels.Todo
-	case panelWeather:
-		e.panels.Weather = !e.panels.Weather
-	case panelStocks:
-		e.panels.Stocks = !e.panels.Stocks
-	case panelStats:
-		e.panels.Stats = !e.panels.Stats
-	case panelNews:
-		e.panels.News = !e.panels.News
+	if p := panelByIndex(&e.panels, idx); p != nil {
+		*p = !*p
 	}
 }
 

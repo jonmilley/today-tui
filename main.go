@@ -27,10 +27,11 @@ func main() {
 			todo = api.NewGitHubClient(cfg.GitHubToken, cfg.GitHubRepo)
 		}
 		deps = ui.Deps{
-			Todo:    todo,
-			Weather: api.NewWeatherClient(cfg.WeatherAPIKey),
-			Stocks:  api.NewYahooClient(),
-			News:    api.NewNewsClient(),
+			Todo:     todo,
+			Calendar: api.NewICSClient(cfg.CalendarURL),
+			Weather:  api.NewWeatherClient(cfg.WeatherAPIKey),
+			Stocks:   api.NewYahooClient(),
+			News:     api.NewNewsClient(),
 		}
 	} else {
 		deps = ui.Deps{

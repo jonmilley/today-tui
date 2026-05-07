@@ -23,15 +23,16 @@ func normalizeUnits(s string) string {
 type wizardStep int
 
 const (
-	stepTodoBackend wizardStep = iota // 0 — new first step
+	stepTodoBackend wizardStep = iota // 0 — backend selection (no text input)
 	stepGitHubRepo                    // 1
 	stepGitHubToken                   // 2
 	stepWeatherKey                    // 3
 	stepWeatherCity                   // 4
 	stepUnits                         // 5
 	stepRSSURL                        // 6
-	stepPanels                        // 7
-	stepDone                          // 8
+	stepCalendarURL                   // 7
+	stepPanels                        // 8
+	stepDone                          // 9
 )
 
 type wizardModel struct {
@@ -61,6 +62,12 @@ var wizardPrompts = []struct {
 	{"Weather City", "City name for weather (e.g. London, New York)", "City Name", false},
 	{"Temperature Units", "Enter F for Fahrenheit or C for Celsius", "F", false},
 	{"RSS Feed URL (optional)", "Full RSS/Atom URL — press Enter to skip", "https://example.com/rss", false},
+	{
+		"Calendar URL (optional)",
+		"ICS URL or local file path (Google secret iCal, iCloud, .ics file) — press Enter to skip",
+		"https://calendar.google.com/calendar/ical/.../basic.ics",
+		false,
+	},
 }
 
 func newWizard() wizardModel {
@@ -80,7 +87,9 @@ func newWizard() wizardModel {
 		step:        stepTodoBackend,
 		todoBackend: todoBackendGitHub,
 		inputs:      inputs,
-		panels:      config.PanelConfig{Todo: true, Weather: true, Stocks: true, Stats: true, News: true},
+		panels: config.PanelConfig{
+			Todo: true, Calendar: true, Weather: true, Stocks: true, Stats: true, News: true,
+		},
 	}
 }
 
@@ -102,38 +111,21 @@ func newWizardFrom(cfg *config.Config) wizardModel {
 	m.inputs[3].SetValue(cfg.WeatherCity)
 	m.inputs[4].SetValue(cfg.Units)
 	m.inputs[5].SetValue(cfg.RSSFeedURL)
+	m.inputs[6].SetValue(cfg.CalendarURL)
 	m.panels = cfg.Panels
 	return m
 }
 
 func (m wizardModel) isPanelEnabled(idx int) bool {
-	switch panelToggles[idx].key {
-	case "todo":
-		return m.panels.Todo
-	case "weather":
-		return m.panels.Weather
-	case "stocks":
-		return m.panels.Stocks
-	case "stats":
-		return m.panels.Stats
-	case "news":
-		return m.panels.News
+	if p := panelByIndex(&m.panels, idx); p != nil {
+		return *p
 	}
 	return false
 }
 
 func (m *wizardModel) togglePanel(idx int) {
-	switch panelToggles[idx].key {
-	case "todo":
-		m.panels.Todo = !m.panels.Todo
-	case "weather":
-		m.panels.Weather = !m.panels.Weather
-	case "stocks":
-		m.panels.Stocks = !m.panels.Stocks
-	case "stats":
-		m.panels.Stats = !m.panels.Stats
-	case "news":
-		m.panels.News = !m.panels.News
+	if p := panelByIndex(&m.panels, idx); p != nil {
+		*p = !*p
 	}
 }
 
@@ -146,6 +138,7 @@ func (m wizardModel) buildConfig() *config.Config {
 		WeatherCity:   m.inputs[3].Value(),
 		Units:         normalizeUnits(m.inputs[4].Value()),
 		RSSFeedURL:    m.inputs[5].Value(),
+		CalendarURL:   m.inputs[6].Value(),
 		Stocks:        config.DefaultStocks(),
 		Panels:        m.panels,
 	}
@@ -242,7 +235,7 @@ func (m wizardModel) handlePanelStepKey(msg tea.KeyMsg) (wizardModel, tea.Cmd) {
 		m.step = stepDone
 		return m, func() tea.Msg { return SetupDoneMsg{Cfg: cfg} }
 	case tea.KeyEsc:
-		m.step = stepRSSURL
+		m.step = stepCalendarURL
 		m.inputs[m.textIdx()].Focus()
 		return m, textinput.Blink
 	}

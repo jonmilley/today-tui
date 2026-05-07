@@ -8,11 +8,12 @@ import (
 )
 
 const (
-	panelTodo    = "todo"
-	panelWeather = "weather"
-	panelStocks  = "stocks"
-	panelStats   = "stats"
-	panelNews    = "news"
+	panelTodo     = "todo"
+	panelCalendar = "calendar"
+	panelWeather  = "weather"
+	panelStocks   = "stocks"
+	panelStats    = "stats"
+	panelNews     = "news"
 
 	keyUp    = "up"
 	keyDown  = "down"
@@ -21,15 +22,16 @@ const (
 )
 
 var (
-	colorTodo    = lipgloss.Color("69")  // blue
-	colorWeather = lipgloss.Color("51")  // cyan
-	colorStocks  = lipgloss.Color("82")  // green
-	colorStats   = lipgloss.Color("220") // yellow
-	colorNews    = lipgloss.Color("213") // magenta
-	colorDim     = lipgloss.Color("245")
-	colorErr     = lipgloss.Color("196")
-	colorPos     = lipgloss.Color("82")
-	colorNeg     = lipgloss.Color("196")
+	colorTodo     = lipgloss.Color("69")  // blue
+	colorCalendar = lipgloss.Color("208") // orange
+	colorWeather  = lipgloss.Color("51")  // cyan
+	colorStocks   = lipgloss.Color("82")  // green
+	colorStats    = lipgloss.Color("220") // yellow
+	colorNews     = lipgloss.Color("213") // magenta
+	colorDim      = lipgloss.Color("245")
+	colorErr      = lipgloss.Color("196")
+	colorPos      = lipgloss.Color("82")
+	colorNeg      = lipgloss.Color("196")
 
 	errStyle  = lipgloss.NewStyle().Foreground(colorErr)
 	dimStyle  = lipgloss.NewStyle().Foreground(colorDim)
