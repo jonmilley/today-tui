@@ -15,6 +15,7 @@ type WeatherData struct {
 	TempF    float64
 	TempC    float64
 	FeelsF   float64
+	FeelsC   float64
 	Desc     string
 	Icon     string
 	Humidity int
@@ -150,6 +151,7 @@ func (c *WeatherClient) FetchWeather(city string) (*WeatherData, error) {
 		Country:  r.Sys.Country,
 		TempC:    r.Main.Temp,
 		TempF:    cToF(r.Main.Temp),
+		FeelsC:   r.Main.FeelsLike,
 		FeelsF:   cToF(r.Main.FeelsLike),
 		Desc:     desc,
 		Icon:     weatherIcon(desc),

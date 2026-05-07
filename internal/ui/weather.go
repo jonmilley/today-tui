@@ -158,12 +158,11 @@ func (p weatherPane) renderCurrent() string {
 	divider := dimStyle.Render("  " + strings.Repeat("─", p.width-6))
 	syncLine := dimStyle.Render(fmt.Sprintf("  Updated: %s", p.lastSync.Format("3:04 PM")))
 
-	feelsC := (d.FeelsF - 32) * 5 / 9
 	lines := []string{
 		fmt.Sprintf("  %s, %s", d.City, d.Country),
 		"",
 		lipgloss.NewStyle().Bold(true).Render("  " + p.tempStr(d.TempF, d.TempC)),
-		fmt.Sprintf("  Feels like: %s", p.feelsStr(d.FeelsF, feelsC)),
+		fmt.Sprintf("  Feels like: %s", p.feelsStr(d.FeelsF, d.FeelsC)),
 		divider,
 		"  " + titleWords(d.Desc),
 		"",
@@ -179,12 +178,11 @@ func (p weatherPane) renderCurrent() string {
 // bodyH is the number of lines available for body content.
 func (p weatherPane) renderCondensed(bodyH int) string {
 	d := p.data
-	feelsC := (d.FeelsF - 32) * 5 / 9
 	syncLine := dimStyle.Render(fmt.Sprintf("  Updated: %s", p.lastSync.Format("3:04 PM")))
 
 	lines := []string{
 		fmt.Sprintf("  %s, %s", d.City, d.Country),
-		fmt.Sprintf("  %s  ·  Feels %s", p.tempStr(d.TempF, d.TempC), p.feelsStr(d.FeelsF, feelsC)),
+		fmt.Sprintf("  %s  ·  Feels %s", p.tempStr(d.TempF, d.TempC), p.feelsStr(d.FeelsF, d.FeelsC)),
 		"  " + titleWords(d.Desc),
 		fmt.Sprintf("  Hum %d%%  ·  Wind %.0f mph %s", d.Humidity, d.WindMph, d.WindDir),
 		syncLine,
