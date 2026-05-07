@@ -191,7 +191,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.handleSetupDone(msg)
 
 	case configClosedMsg:
-		return a.handleConfigClosed(msg), nil
+		return a.handleConfigClosed(msg)
 
 	case tea.MouseMsg:
 		return a.handleMouseMsg(msg)
@@ -274,17 +274,24 @@ func (a App) handleSetupDone(msg SetupDoneMsg) (App, tea.Cmd) {
 	return a, a.initPanes()
 }
 
-func (a App) handleConfigClosed(msg configClosedMsg) App {
-	a.cfg.Panels = msg.panels
+func (a App) handleConfigClosed(msg configClosedMsg) (App, tea.Cmd) {
+	*a.cfg = msg.cfg
 	if err := a.cfg.Save(); err != nil {
 		a.status = "Save failed: " + err.Error()
 	} else {
 		a.status = ""
 	}
+	// Settings (token, URLs, city, units, stocks, RSS) may have changed —
+	// rebuild the API clients and the panes so the new values take effect
+	// without requiring a restart, and re-fetch their data.
+	a.deps.Refresh(a.cfg)
+	a.seedDashPanes()
 	a.mode = modeDash
 	a.ensureFocusVisible()
-	a.resizePanes()
-	return a
+	if a.ready {
+		a.resizePanes()
+	}
+	return a, a.initPanes()
 }
 
 func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
@@ -314,7 +321,7 @@ func (a App) handleKeyMsg(msg tea.KeyMsg) (App, tea.Cmd) {
 	case "q", "ctrl+c":
 		return a, tea.Quit
 	case ",":
-		a.configEditor = newConfigEditor(a.cfg.Panels)
+		a.configEditor = newConfigEditor(*a.cfg)
 		a.configEditor.width = a.width
 		a.configEditor.height = a.height
 		a.mode = modeConfig
@@ -717,10 +724,12 @@ func (a App) View() string {
 }
 
 func buildStatusBar(w, focused int, status string) string {
-	paneNames := []string{"Todo", "Calendar", "Weather", "Stocks", "Stats", "News"}
+	// panelToggles is maintained in the same order as the pane* iota
+	// (Todo, Calendar, Weather, Stocks, Stats, News), so its labels
+	// double as the focused-pane name shown in the status bar.
 	name := ""
-	if focused >= 0 && focused < len(paneNames) {
-		name = paneNames[focused]
+	if focused >= 0 && focused < len(panelToggles) {
+		name = panelToggles[focused].label
 	}
 	left := dimStyle.Render("  Tab: next pane  ,: panels  q: quit  r: refresh")
 	// Right side normally shows the focused pane name, but if there's a
