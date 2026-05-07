@@ -3,8 +3,10 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 )
@@ -112,7 +114,7 @@ func (c *WeatherClient) FetchForecast(city string) (*ForecastDay, error) {
 		return nil, err
 	}
 
-	return parseTomorrow(r), nil
+	return parseForecast(r, time.Now()), nil
 }
 
 func (c *WeatherClient) FetchWeather(city string) (*WeatherData, error) {
@@ -186,54 +188,82 @@ func weatherIcon(desc string) string {
 	}
 }
 
-// parseTomorrow aggregates 3-hour forecast blocks for the next calendar day
-// using the city's UTC offset so the date boundary is local time.
-func parseTomorrow(r owmForecastResponse) *ForecastDay {
-	loc := time.FixedZone("city", r.City.Timezone)
-	tomorrow := time.Now().In(loc).AddDate(0, 0, 1).Format("2006-01-02")
+// dayBucket aggregates the 3-hour forecast entries that fall on a single
+// calendar day in the city's local timezone.
+type dayBucket struct {
+	minC, maxC float64
+	descCount  map[string]int
+	maxPop     float64
+}
 
-	minC := 999.0
-	maxC := -999.0
-	descCount := map[string]int{}
-	maxPop := 0.0
+// parseForecast picks the earliest calendar day strictly after `now` (in the
+// city's timezone) that has at least one forecast block, and aggregates its
+// 3-hour entries into a single ForecastDay. Usually that's tomorrow; if the
+// API returns no entries for tomorrow (very late in the forecast window, or
+// if blocks shifted), we fall back to the next available day rather than
+// showing "no forecast data". Returns nil only when every entry is dated
+// today or earlier in the city's local time.
+//
+// `now` is injected rather than read from time.Now() so callers can pin it
+// in tests.
+func parseForecast(r owmForecastResponse, now time.Time) *ForecastDay {
+	loc := time.FixedZone("city", r.City.Timezone)
+	today := now.In(loc).Format("2006-01-02")
+
+	byDate := map[string]*dayBucket{}
+	var dates []string
 
 	for _, entry := range r.List {
-		if time.Unix(entry.Dt, 0).In(loc).Format("2006-01-02") != tomorrow {
+		date := time.Unix(entry.Dt, 0).In(loc).Format("2006-01-02")
+		if date <= today {
 			continue
 		}
-		if entry.Main.TempMin < minC {
-			minC = entry.Main.TempMin
+		b, ok := byDate[date]
+		if !ok {
+			b = &dayBucket{
+				minC:      math.Inf(1),
+				maxC:      math.Inf(-1),
+				descCount: map[string]int{},
+			}
+			byDate[date] = b
+			dates = append(dates, date)
 		}
-		if entry.Main.TempMax > maxC {
-			maxC = entry.Main.TempMax
+		if entry.Main.TempMin < b.minC {
+			b.minC = entry.Main.TempMin
+		}
+		if entry.Main.TempMax > b.maxC {
+			b.maxC = entry.Main.TempMax
 		}
 		if len(entry.Weather) > 0 {
-			descCount[entry.Weather[0].Description]++
+			b.descCount[entry.Weather[0].Description]++
 		}
-		if entry.Pop > maxPop {
-			maxPop = entry.Pop
+		if entry.Pop > b.maxPop {
+			b.maxPop = entry.Pop
 		}
 	}
 
-	if minC == 999.0 {
-		return nil // no data for tomorrow (e.g. near end of forecast window)
+	if len(dates) == 0 {
+		return nil
 	}
+	// YYYY-MM-DD strings sort chronologically. Defensive sort in case the
+	// API ever returns entries out of order.
+	sort.Strings(dates)
+	b := byDate[dates[0]]
 
-	// Pick the most frequently occurring description.
 	desc := ""
 	best := 0
-	for d, n := range descCount {
+	for d, n := range b.descCount {
 		if n > best {
 			best, desc = n, d
 		}
 	}
 
 	return &ForecastDay{
-		TempMinC:  minC,
-		TempMaxC:  maxC,
-		TempMinF:  cToF(minC),
-		TempMaxF:  cToF(maxC),
+		TempMinC:  b.minC,
+		TempMaxC:  b.maxC,
+		TempMinF:  cToF(b.minC),
+		TempMaxF:  cToF(b.maxC),
 		Desc:      desc,
-		PrecipPct: int(maxPop * 100),
+		PrecipPct: int(b.maxPop * 100),
 	}
 }
