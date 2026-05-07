@@ -731,7 +731,7 @@ func buildStatusBar(w, focused int, status string) string {
 	if focused >= 0 && focused < len(panelToggles) {
 		name = panelToggles[focused].label
 	}
-	left := dimStyle.Render("  Tab: next pane  ,: panels  q: quit  r: refresh")
+	left := dimStyle.Render("  Tab: next pane  ,: config  q: quit  r: refresh")
 	// Right side normally shows the focused pane name, but if there's a
 	// transient app-level status message (e.g. config save failure), show
 	// that instead in the error color.
