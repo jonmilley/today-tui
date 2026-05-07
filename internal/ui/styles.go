@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 )
 
 const (
@@ -58,22 +59,28 @@ func progressBar(pct float64, width int) string {
 	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
 }
 
+// truncate shortens s to at most maxLen display columns, appending an ellipsis
+// when content was dropped. Operates on visual width (runewidth) rather than
+// bytes so multi-byte and double-width runes don't get sliced mid-character.
 func truncate(s string, maxLen int) string {
 	if maxLen <= 0 {
 		return ""
 	}
-	if len(s) <= maxLen {
+	if runewidth.StringWidth(s) <= maxLen {
 		return s
 	}
 	if maxLen <= 3 {
-		return s[:maxLen]
+		return runewidth.Truncate(s, maxLen, "")
 	}
-	return s[:maxLen-3] + "..."
+	return runewidth.Truncate(s, maxLen, "...")
 }
 
+// padRight pads s with spaces on the right to reach width display columns.
+// No-op if s is already at least that wide.
 func padRight(s string, width int) string {
-	if len(s) >= width {
+	w := runewidth.StringWidth(s)
+	if w >= width {
 		return s
 	}
-	return s + strings.Repeat(" ", width-len(s))
+	return s + strings.Repeat(" ", width-w)
 }
