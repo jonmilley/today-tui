@@ -25,6 +25,7 @@ type newsPane struct {
 	selected   int
 	loading    bool
 	err        string
+	status     string // transient message (e.g. browser-open failure)
 	lastSync   time.Time
 	viewport   viewport.Model // list
 	previewVP  viewport.Model // article preview
@@ -112,7 +113,11 @@ func (p newsPane) handleKeyMsg(msg tea.KeyMsg) (newsPane, tea.Cmd) {
 		p = p.togglePreview()
 	case "o":
 		if p.selected < len(p.items) {
-			openBrowser(p.items[p.selected].Link)
+			if err := openBrowser(p.items[p.selected].Link); err != nil {
+				p.status = "Open failed: " + err.Error()
+			} else {
+				p.status = ""
+			}
 		}
 	case "esc":
 		if p.previewing {
@@ -353,7 +358,9 @@ func (p newsPane) View() string {
 	topSep := dimStyle.Render(strings.Repeat("─", p.width-4))
 
 	var hint string
-	if p.focused {
+	if p.status != "" {
+		hint = errStyle.Render("  " + truncate(p.status, p.width-4))
+	} else if p.focused {
 		if p.previewing {
 			hint = dimStyle.Render("  j/k: nav  Enter/Esc: close  o: browser  r: refresh")
 		} else {

@@ -237,7 +237,9 @@ func (p todoPane) handleNavigationKey(msg tea.KeyMsg) (todoPane, tea.Cmd) {
 	case keyEnter:
 		if p.selected < len(p.issues) {
 			if url := p.issues[p.selected].HTMLURL; url != "" {
-				openBrowser(url)
+				if err := openBrowser(url); err != nil {
+					p.status = "Open failed: " + err.Error()
+				}
 			}
 		}
 	case "c":
@@ -397,18 +399,22 @@ func (p todoPane) View() string {
 	return paneStyle(colorTodo, p.focused, p.width, p.height).Render(inner)
 }
 
-func openBrowser(url string) {
-	var cmd string
+// openBrowser launches the platform's default URL opener. Returns an error
+// when the platform isn't supported or the opener binary isn't available;
+// callers should surface this so users aren't left wondering why nothing
+// happened on Enter/o.
+func openBrowser(url string) error {
+	var name string
 	var args []string
 	switch runtime.GOOS {
 	case "linux":
-		cmd, args = "xdg-open", []string{url}
+		name, args = "xdg-open", []string{url}
 	case "darwin":
-		cmd, args = "open", []string{url}
+		name, args = "open", []string{url}
 	case "windows":
-		cmd, args = "cmd", []string{"/c", "start", url}
+		name, args = "cmd", []string{"/c", "start", url}
 	default:
-		return
+		return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 	}
-	exec.Command(cmd, args...).Start() //nolint:errcheck
+	return exec.Command(name, args...).Start()
 }
