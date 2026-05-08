@@ -89,11 +89,49 @@ func (p *calendarPane) SetSize(w, h int) {
 	p.width = w
 	p.height = h
 	p.viewport.Width = w - 4
-	p.viewport.Height = h - 4
+	p.viewport.Height = p.viewportHeight()
 	p.viewport.SetContent(p.renderContent())
 }
 
-func (p *calendarPane) SetFocused(f bool) { p.focused = f }
+func (p *calendarPane) SetFocused(f bool) {
+	p.focused = f
+	// Recompute viewport height since the refresh hint row appears only
+	// when focused; re-rendering the content fits the new size.
+	if p.height > 0 {
+		p.viewport.Height = p.viewportHeight()
+		p.viewport.SetContent(p.renderContent())
+	}
+}
+
+// viewportHeight returns the number of rows reserved for the events list,
+// after subtracting pane chrome (border + title + sep), the refresh hint
+// row (if focused), and the mini month calendar (if it fits).
+func (p calendarPane) viewportHeight() int {
+	const chrome = 4 // border 2 + title 1 + sep 1
+	hintH := 0
+	if p.focused && p.source != "" {
+		hintH = 1
+	}
+	miniH := 0
+	if p.shouldShowMini() {
+		miniH = miniCalHeight
+	}
+	h := p.height - chrome - hintH - miniH
+	if h < 1 {
+		h = 1
+	}
+	return h
+}
+
+// miniCalHeight is the fixed number of rows the mini month calendar
+// occupies: separator + month header + weekday header + 6 date rows.
+const miniCalHeight = 9
+
+// shouldShowMini reports whether the pane is large enough to embed the
+// mini month calendar without crowding the events list.
+func (p calendarPane) shouldShowMini() bool {
+	return p.width >= 25 && p.height >= 14
+}
 
 func (p calendarPane) renderContent() string {
 	if p.source == "" {
@@ -168,10 +206,103 @@ func (p calendarPane) View() string {
 	sep := dimStyle.Render(strings.Repeat("─", p.width-4))
 
 	parts := []string{header, sep, p.viewport.View()}
+
+	if p.shouldShowMini() {
+		miniSep := dimStyle.Render(strings.Repeat("─", p.width-4))
+		parts = append(parts, miniSep, p.renderMonthMini(time.Now()))
+	}
+
 	if p.focused && p.source != "" {
 		parts = append(parts, dimStyle.Render("  r: refresh"))
 	}
 
 	inner := lipgloss.JoinVertical(lipgloss.Left, parts...)
 	return paneStyle(colorCalendar, p.focused, p.width, p.height).Render(inner)
+}
+
+// renderMonthMini draws a small month-view calendar. Today is rendered
+// reversed-bold; days that have at least one upcoming event are shown in
+// the calendar accent color (bold). Always emits exactly miniCalHeight - 1
+// lines (the leading separator is added by the caller) so the layout is
+// stable even when the month uses fewer than 6 weeks.
+func (p calendarPane) renderMonthMini(now time.Time) string {
+	year := now.Year()
+	month := now.Month()
+	today := now.Day()
+	loc := now.Location()
+
+	first := time.Date(year, month, 1, 0, 0, 0, 0, loc)
+	startWeekday := int(first.Weekday())
+	daysInMonth := time.Date(year, month+1, 0, 0, 0, 0, 0, loc).Day()
+
+	eventDays := p.collectEventDays(year, month)
+
+	// Build date rows of 7 cells each. Cells are 2 visible chars wide;
+	// styled cells (today, event days) keep that visible width — only
+	// ANSI escape codes are added.
+	var rows []string
+	var current []string
+	for i := 0; i < startWeekday; i++ {
+		current = append(current, "  ")
+	}
+	for d := 1; d <= daysInMonth; d++ {
+		current = append(current, miniCell(d, today, eventDays[d]))
+		if len(current) == 7 {
+			rows = append(rows, "  "+strings.Join(current, " "))
+			current = nil
+		}
+	}
+	if len(current) > 0 {
+		for len(current) < 7 {
+			current = append(current, "  ")
+		}
+		rows = append(rows, "  "+strings.Join(current, " "))
+	}
+	for len(rows) < 6 {
+		rows = append(rows, "")
+	}
+
+	monthHeader := fmt.Sprintf("%s %d", month.String(), year)
+	headerStyle := lipgloss.NewStyle().Foreground(colorCalendar).Bold(true)
+	out := []string{
+		"  " + headerStyle.Render(centerInWidth(monthHeader, 21)),
+		dimStyle.Render("  Su Mo Tu We Th Fr Sa"),
+	}
+	out = append(out, rows...)
+	return strings.Join(out, "\n")
+}
+
+// miniCell renders one day-of-month cell with the appropriate styling.
+func miniCell(day, today int, hasEvent bool) string {
+	cell := fmt.Sprintf("%2d", day)
+	switch {
+	case day == today:
+		return lipgloss.NewStyle().Reverse(true).Bold(true).Render(cell)
+	case hasEvent:
+		return lipgloss.NewStyle().Foreground(colorCalendar).Bold(true).Render(cell)
+	}
+	return cell
+}
+
+// collectEventDays returns a set of days-of-month within (year, month)
+// that have at least one event in p.events.
+func (p calendarPane) collectEventDays(year int, month time.Month) map[int]bool {
+	out := map[int]bool{}
+	for _, ev := range p.events {
+		s := ev.Start
+		if s.Year() == year && s.Month() == month {
+			out[s.Day()] = true
+		}
+	}
+	return out
+}
+
+// centerInWidth pads s with leading spaces so it appears centered in
+// width display columns. Returns s unchanged if it's already wider.
+func centerInWidth(s string, width int) string {
+	pad := width - len(s)
+	if pad <= 0 {
+		return s
+	}
+	return strings.Repeat(" ", pad/2) + s
 }
