@@ -173,10 +173,38 @@ func (a App) initPanes() tea.Cmd {
 	)
 }
 
+// refreshIntervalSecs is the period of the global refresh tick. Per-pane
+// fetches inside that period are staggered (see paneRefreshOffsets) so
+// they don't all fire simultaneously and burst load on remote APIs.
+const refreshIntervalSecs = 60
+
+// paneRefreshOffsets distributes the four network-bound pane fetches
+// evenly across the refresh window. Within each refreshInterval the
+// staggered fetches fire at: weather (+0s), stocks (+15s), news (+30s),
+// calendar (+45s). Before the first tick fires, every pane has already
+// been seeded by its Init().
+var paneRefreshOffsets = struct {
+	weather, stocks, news, calendar time.Duration
+}{
+	weather:  0 * time.Second,
+	stocks:   15 * time.Second,
+	news:     30 * time.Second,
+	calendar: 45 * time.Second,
+}
+
 func refreshTick() tea.Cmd {
-	return tea.Tick(60*time.Second, func(_ time.Time) tea.Msg {
+	return tea.Tick(refreshIntervalSecs*time.Second, func(_ time.Time) tea.Msg {
 		return refreshTickMsg{}
 	})
+}
+
+// scheduleFetch returns a Cmd that fires msg after delay. delay==0 sends
+// the message immediately on the next runtime turn.
+func scheduleFetch(delay time.Duration, msg tea.Msg) tea.Cmd {
+	if delay == 0 {
+		return func() tea.Msg { return msg }
+	}
+	return tea.Tick(delay, func(_ time.Time) tea.Msg { return msg })
 }
 
 func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -359,13 +387,15 @@ func (a App) dispatchToPanes(msg tea.Msg) (App, tea.Cmd) {
 	a.news, cmd = a.news.Update(msg)
 	cmds = append(cmds, cmd)
 
-	// Periodic refresh
+	// Periodic refresh — stagger fetches so they don't all hit the network
+	// (and visibly redraw) at the same instant. Stats refreshes on its
+	// own 3s cadence; todo only refreshes on demand or at startup.
 	if _, ok := msg.(refreshTickMsg); ok {
 		cmds = append(cmds,
-			func() tea.Msg { return fetchCalendarMsg{} },
-			func() tea.Msg { return fetchWeatherMsg{} },
-			func() tea.Msg { return fetchStocksMsg{} },
-			func() tea.Msg { return fetchNewsMsg{} },
+			scheduleFetch(paneRefreshOffsets.weather, fetchWeatherMsg{}),
+			scheduleFetch(paneRefreshOffsets.stocks, fetchStocksMsg{}),
+			scheduleFetch(paneRefreshOffsets.news, fetchNewsMsg{}),
+			scheduleFetch(paneRefreshOffsets.calendar, fetchCalendarMsg{}),
 			refreshTick(),
 		)
 	}

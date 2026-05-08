@@ -2,6 +2,7 @@ package ui
 
 import (
 	"testing"
+	"time"
 
 	"github.com/jonmilley/today-tui/internal/config"
 )
@@ -93,6 +94,31 @@ func TestPaneAtNoLeftPanes(t *testing.T) {
 	got, ok := a.paneAt(5, 5)
 	if !ok || got != paneWeather {
 		t.Errorf("paneAt(5, 5) = (%d, %v); want paneWeather (no left column)", got, ok)
+	}
+}
+
+func TestPaneRefreshOffsetsAreStaggered(t *testing.T) {
+	period := time.Duration(refreshIntervalSecs) * time.Second
+	offsets := []time.Duration{
+		paneRefreshOffsets.weather,
+		paneRefreshOffsets.stocks,
+		paneRefreshOffsets.news,
+		paneRefreshOffsets.calendar,
+	}
+	// Every offset must fall within the refresh window — otherwise it would
+	// either fire before the tick (negative) or overlap the next cycle.
+	for i, o := range offsets {
+		if o < 0 || o >= period {
+			t.Errorf("offset[%d] = %v; want in [0, %v)", i, o, period)
+		}
+	}
+	// Offsets must be distinct so two panes never fetch on the same instant.
+	seen := map[time.Duration]bool{}
+	for i, o := range offsets {
+		if seen[o] {
+			t.Errorf("offset[%d] = %v; duplicates an earlier offset", i, o)
+		}
+		seen[o] = true
 	}
 }
 
