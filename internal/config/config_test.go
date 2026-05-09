@@ -34,8 +34,10 @@ func loadFrom(path string) (*Config, error) {
 	if len(cfg.Stocks) == 0 {
 		cfg.Stocks = DefaultStocks()
 	}
-	if cfg.Units != "C" {
-		cfg.Units = "F"
+	if cfg.Units == "C" || cfg.Units == UnitsMetric {
+		cfg.Units = UnitsMetric
+	} else {
+		cfg.Units = UnitsImperial
 	}
 	if _, hasPanels := raw["panels"]; !hasPanels {
 		cfg.Panels = PanelConfig{Todo: true, Weather: true, Stocks: true, Stats: true, News: true}
@@ -61,8 +63,8 @@ func TestConfigDefaultsAppliedWhenPanelsAbsent(t *testing.T) {
 	if !reflect.DeepEqual(cfg.Stocks, DefaultStocks()) {
 		t.Errorf("Expected default stocks, got %v", cfg.Stocks)
 	}
-	if cfg.Units != "F" {
-		t.Errorf("Expected default units F, got %v", cfg.Units)
+	if cfg.Units != UnitsImperial {
+		t.Errorf("Expected default units Imperial, got %v", cfg.Units)
 	}
 	want := PanelConfig{Todo: true, Weather: true, Stocks: true, Stats: true, News: true}
 	if cfg.Panels != want {

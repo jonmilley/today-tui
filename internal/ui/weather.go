@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jonmilley/today-tui/internal/api"
+	"github.com/jonmilley/today-tui/internal/config"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -21,7 +22,7 @@ type gotWeatherMsg struct {
 type weatherPane struct {
 	weather  api.Weather
 	city     string
-	units    string // "F" or "C"
+	units    string // "Imperial" or "Metric"
 	data     *api.WeatherData
 	forecast *api.ForecastDay
 	loading  bool
@@ -139,7 +140,7 @@ func titleWords(s string) string {
 
 // tempStr formats a temperature pair with the configured unit shown first.
 func (p weatherPane) tempStr(f, c float64) string {
-	if p.units == "C" {
+	if p.units == config.UnitsMetric {
 		return fmt.Sprintf("%.0f°C / %.0f°F", c, f)
 	}
 	return fmt.Sprintf("%.0f°F / %.0f°C", f, c)
@@ -147,10 +148,18 @@ func (p weatherPane) tempStr(f, c float64) string {
 
 // feelsStr formats a feels-like temperature in the configured unit only.
 func (p weatherPane) feelsStr(f, c float64) string {
-	if p.units == "C" {
+	if p.units == config.UnitsMetric {
 		return fmt.Sprintf("%.0f°C", c)
 	}
 	return fmt.Sprintf("%.0f°F", f)
+}
+
+// windStr formats wind speed in the unit matching the configured temperature unit.
+func (p weatherPane) windStr(mph, kph float64, dir string) string {
+	if p.units == config.UnitsMetric {
+		return fmt.Sprintf("%.0f kph %s", kph, dir)
+	}
+	return fmt.Sprintf("%.0f mph %s", mph, dir)
 }
 
 func (p weatherPane) renderCurrent() string {
@@ -167,7 +176,7 @@ func (p weatherPane) renderCurrent() string {
 		"  " + titleWords(d.Desc),
 		"",
 		fmt.Sprintf("  Humidity:  %d%%", d.Humidity),
-		fmt.Sprintf("  Wind:      %.0f mph %s", d.WindMph, d.WindDir),
+		fmt.Sprintf("  Wind:      %s", p.windStr(d.WindMph, d.WindKph, d.WindDir)),
 		"",
 		syncLine,
 	}
@@ -184,7 +193,7 @@ func (p weatherPane) renderCondensed(bodyH int) string {
 		fmt.Sprintf("  %s, %s", d.City, d.Country),
 		fmt.Sprintf("  %s  ·  Feels %s", p.tempStr(d.TempF, d.TempC), p.feelsStr(d.FeelsF, d.FeelsC)),
 		"  " + titleWords(d.Desc),
-		fmt.Sprintf("  Hum %d%%  ·  Wind %.0f mph %s", d.Humidity, d.WindMph, d.WindDir),
+		fmt.Sprintf("  Hum %d%%  ·  Wind %s", d.Humidity, p.windStr(d.WindMph, d.WindKph, d.WindDir)),
 		syncLine,
 	}
 

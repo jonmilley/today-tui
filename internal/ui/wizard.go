@@ -14,10 +14,11 @@ import (
 type SetupDoneMsg struct{ Cfg *config.Config }
 
 func normalizeUnits(s string) string {
-	if strings.ToUpper(strings.TrimSpace(s)) == "C" {
-		return "C"
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "c", "m", "metric":
+		return config.UnitsMetric
 	}
-	return "F"
+	return config.UnitsImperial
 }
 
 type wizardStep int
@@ -60,7 +61,7 @@ var wizardPrompts = []struct {
 	{"GitHub Token", "Personal access token with 'repo' scope", "ghp_...", true},
 	{"OpenWeatherMap API Key", "Free at openweathermap.org/api", "your-api-key", true},
 	{"Weather City", "City name for weather (e.g. London, New York)", "City Name", false},
-	{"Temperature Units", "Enter F for Fahrenheit or C for Celsius", "F", false},
+	{"Units", "Enter Imperial (°F, mph) or Metric (°C, kph)", config.UnitsImperial, false},
 	{"RSS Feed URL (optional)", "Full RSS/Atom URL — press Enter to skip", "https://example.com/rss", false},
 	{
 		"Calendar URL (optional)",
@@ -170,9 +171,11 @@ func (m wizardModel) validate() string {
 			return "City is required"
 		}
 	case stepUnits:
-		u := strings.ToUpper(strings.TrimSpace(val))
-		if u != "F" && u != "C" {
-			return "Enter 'F' or 'C'"
+		u := strings.ToLower(strings.TrimSpace(val))
+		switch u {
+		case "imperial", "metric", "i", "m":
+		default:
+			return "Enter 'Imperial' or 'Metric'"
 		}
 	}
 	return ""

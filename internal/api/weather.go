@@ -22,6 +22,7 @@ type WeatherData struct {
 	Icon     string
 	Humidity int
 	WindMph  float64
+	WindKph  float64
 	WindDir  string
 }
 
@@ -159,6 +160,7 @@ func (c *WeatherClient) FetchWeather(city string) (*WeatherData, error) {
 		Icon:     weatherIcon(desc),
 		Humidity: r.Main.Humidity,
 		WindMph:  r.Wind.Speed * 2.237, // m/s to mph
+		WindKph:  r.Wind.Speed * 3.6,   // m/s to kph
 		WindDir:  degToDir(r.Wind.Deg),
 	}, nil
 }

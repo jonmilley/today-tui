@@ -6,6 +6,11 @@ import (
 	"path/filepath"
 )
 
+const (
+	UnitsImperial = "Imperial"
+	UnitsMetric   = "Metric"
+)
+
 type PanelConfig struct {
 	Todo     bool `json:"todo"`
 	Calendar bool `json:"calendar"`
@@ -21,7 +26,7 @@ type Config struct {
 	TodoBackend   string      `json:"todo_backend"` // "github" or "local"
 	WeatherAPIKey string      `json:"weather_api_key"`
 	WeatherCity   string      `json:"weather_city"`
-	Units         string      `json:"units"` // "F" or "C"
+	Units         string      `json:"units"` // "Imperial" or "Metric"
 	Stocks        []string    `json:"stocks"`
 	RSSFeedURL    string      `json:"rss_feed_url"`
 	CalendarURL   string      `json:"calendar_url"` // ICS URL or local file path
@@ -66,8 +71,11 @@ func Load() (*Config, error) {
 	if len(cfg.Stocks) == 0 {
 		cfg.Stocks = DefaultStocks()
 	}
-	if cfg.Units != "C" {
-		cfg.Units = "F" // default to Fahrenheit
+	// Migrate legacy "F"/"C" values; default to Imperial.
+	if cfg.Units == "C" || cfg.Units == UnitsMetric {
+		cfg.Units = UnitsMetric
+	} else {
+		cfg.Units = UnitsImperial
 	}
 	if _, hasPanels := raw["panels"]; !hasPanels {
 		cfg.Panels = PanelConfig{

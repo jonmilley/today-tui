@@ -113,7 +113,7 @@ func buildConfigFields() []field {
 		{kind: fieldText, label: "Calendar URL", key: keyCalendarURL},
 		{kind: fieldPassword, label: "Weather API key", key: keyWeatherKey},
 		{kind: fieldText, label: "Weather city", key: keyWeatherCity},
-		{kind: fieldChoice, label: "Units", key: keyUnits, choices: []string{"F", "C"}},
+		{kind: fieldChoice, label: "Units", key: keyUnits, choices: []string{config.UnitsImperial, config.UnitsMetric}},
 		{kind: fieldList, label: "Stocks", key: keyStocks},
 		{kind: fieldText, label: "RSS feed URL", key: keyRSSURL},
 		{kind: fieldHeader, label: "Panels"},

@@ -55,7 +55,7 @@ func TestGetSetStringFieldRoundTrip(t *testing.T) {
 		CalendarURL:   "https://example.com/cal.ics",
 		WeatherAPIKey: "abc",
 		WeatherCity:   "London",
-		Units:         "F",
+		Units:         config.UnitsImperial,
 		Stocks:        []string{"SPY", "QQQ"},
 		RSSFeedURL:    "https://example.com/feed",
 	}
@@ -70,7 +70,7 @@ func TestGetSetStringFieldRoundTrip(t *testing.T) {
 		{keyCalendarURL, "https://example.com/cal.ics"},
 		{keyWeatherKey, "abc"},
 		{keyWeatherCity, "London"},
-		{keyUnits, "F"},
+		{keyUnits, config.UnitsImperial},
 		{keyStocks, "SPY, QQQ"},
 		{keyRSSURL, "https://example.com/feed"},
 	}
@@ -86,7 +86,7 @@ func TestGetSetStringFieldRoundTrip(t *testing.T) {
 		t.Errorf("setStringField trimming failed: WeatherCity = %q", cfg.WeatherCity)
 	}
 	setStringField(&cfg, keyUnits, "c")
-	if cfg.Units != "C" {
+	if cfg.Units != config.UnitsMetric {
 		t.Errorf("setStringField unit normalization failed: %q", cfg.Units)
 	}
 	setStringField(&cfg, keyStocks, "msft, googl, aapl")
