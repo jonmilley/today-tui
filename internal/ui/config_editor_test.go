@@ -57,7 +57,7 @@ func TestGetSetStringFieldRoundTrip(t *testing.T) {
 		WeatherCity:   "London",
 		Units:         config.UnitsImperial,
 		Stocks:        []string{"SPY", "QQQ"},
-		RSSFeedURL:    "https://example.com/feed",
+		RSSFeedURLs:   []string{"https://example.com/feed", "https://other.com/rss"},
 	}
 
 	tests := []struct {
@@ -72,7 +72,7 @@ func TestGetSetStringFieldRoundTrip(t *testing.T) {
 		{keyWeatherCity, "London"},
 		{keyUnits, config.UnitsImperial},
 		{keyStocks, "SPY, QQQ"},
-		{keyRSSURL, "https://example.com/feed"},
+		{keyRSSURL, "https://example.com/feed, https://other.com/rss"},
 	}
 	for _, tt := range tests {
 		if got := getStringField(&cfg, tt.key); got != tt.want {

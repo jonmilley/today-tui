@@ -62,7 +62,12 @@ var wizardPrompts = []struct {
 	{"OpenWeatherMap API Key", "Free at openweathermap.org/api", "your-api-key", true},
 	{"Weather City", "City name for weather (e.g. London, New York)", "City Name", false},
 	{"Units", "Enter Imperial (°F, mph) or Metric (°C, kph)", config.UnitsImperial, false},
-	{"RSS Feed URL (optional)", "Full RSS/Atom URL — press Enter to skip", "https://example.com/rss", false},
+	{
+		"RSS Feeds (optional)",
+		"Comma-separated RSS/Atom URLs — press Enter to skip",
+		"https://example.com/rss, https://other.com/feed",
+		false,
+	},
 	{
 		"Calendar URL (optional)",
 		"ICS URL or local file path (Google secret iCal, iCloud, .ics file) — press Enter to skip",
@@ -111,7 +116,7 @@ func newWizardFrom(cfg *config.Config) wizardModel {
 	m.inputs[2].SetValue(cfg.WeatherAPIKey)
 	m.inputs[3].SetValue(cfg.WeatherCity)
 	m.inputs[4].SetValue(cfg.Units)
-	m.inputs[5].SetValue(cfg.RSSFeedURL)
+	m.inputs[5].SetValue(strings.Join(cfg.RSSFeedURLs, ", "))
 	m.inputs[6].SetValue(cfg.CalendarURL)
 	m.panels = cfg.Panels
 	return m
@@ -138,7 +143,7 @@ func (m wizardModel) buildConfig() *config.Config {
 		WeatherAPIKey: m.inputs[2].Value(),
 		WeatherCity:   m.inputs[3].Value(),
 		Units:         normalizeUnits(m.inputs[4].Value()),
-		RSSFeedURL:    m.inputs[5].Value(),
+		RSSFeedURLs:   parseRSSList(m.inputs[5].Value()),
 		CalendarURL:   m.inputs[6].Value(),
 		Stocks:        config.DefaultStocks(),
 		Panels:        m.panels,

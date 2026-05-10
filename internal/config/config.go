@@ -28,7 +28,8 @@ type Config struct {
 	WeatherCity   string      `json:"weather_city"`
 	Units         string      `json:"units"` // "Imperial" or "Metric"
 	Stocks        []string    `json:"stocks"`
-	RSSFeedURL    string      `json:"rss_feed_url"`
+	RSSFeedURL    string      `json:"rss_feed_url,omitempty"` // legacy single-feed; migrated into RSSFeedURLs on load
+	RSSFeedURLs   []string    `json:"rss_feed_urls,omitempty"`
 	CalendarURL   string      `json:"calendar_url"` // ICS URL or local file path
 	Panels        PanelConfig `json:"panels"`
 }
@@ -77,6 +78,12 @@ func Load() (*Config, error) {
 	} else {
 		cfg.Units = UnitsImperial
 	}
+	// Migrate legacy single rss_feed_url into the rss_feed_urls list, then
+	// clear it so it doesn't round-trip back into saved configs.
+	if cfg.RSSFeedURL != "" && len(cfg.RSSFeedURLs) == 0 {
+		cfg.RSSFeedURLs = []string{cfg.RSSFeedURL}
+	}
+	cfg.RSSFeedURL = ""
 	if _, hasPanels := raw["panels"]; !hasPanels {
 		cfg.Panels = PanelConfig{
 			Todo: true, Calendar: true, Weather: true, Stocks: true, Stats: true, News: true,

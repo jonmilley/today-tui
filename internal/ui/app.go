@@ -148,7 +148,7 @@ func (a *App) seedDashPanes() {
 	a.weather = newWeatherPane(a.deps.Weather, a.cfg.WeatherCity, a.cfg.Units)
 	a.stocks = newStocksPane(a.deps.Stocks, a.cfg.Stocks)
 	a.stats = newStatsPane()
-	a.news = newNewsPane(a.deps.News, a.cfg.RSSFeedURL)
+	a.news = newNewsPane(a.deps.News, a.cfg.RSSFeedURLs)
 	a.focused = paneTodo
 }
 

@@ -20,7 +20,7 @@ type gotNewsMsg struct {
 
 type newsPane struct {
 	news       api.News
-	feedURL    string
+	feedURLs   []string
 	items      []api.NewsItem
 	selected   int
 	loading    bool
@@ -35,20 +35,20 @@ type newsPane struct {
 	focused    bool
 }
 
-func newNewsPane(news api.News, feedURL string) newsPane {
-	return newsPane{news: news, feedURL: feedURL, loading: true}
+func newNewsPane(news api.News, feedURLs []string) newsPane {
+	return newsPane{news: news, feedURLs: feedURLs, loading: true}
 }
 
 func (p newsPane) Init() tea.Cmd {
-	if p.feedURL == "" {
+	if len(p.feedURLs) == 0 {
 		return nil
 	}
 	return func() tea.Msg { return fetchNewsMsg{} }
 }
 
-func doFetchNews(news api.News, feedURL string) tea.Cmd {
+func doFetchNews(news api.News, feedURLs []string) tea.Cmd {
 	return func() tea.Msg {
-		items, err := news.FetchNews(feedURL)
+		items, err := news.FetchNews(feedURLs)
 		return gotNewsMsg{items: items, err: err}
 	}
 }
@@ -57,11 +57,11 @@ func (p newsPane) Update(msg tea.Msg) (newsPane, tea.Cmd) {
 	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case fetchNewsMsg:
-		if p.feedURL == "" {
+		if len(p.feedURLs) == 0 {
 			break
 		}
 		p.loading = true
-		cmds = append(cmds, doFetchNews(p.news, p.feedURL))
+		cmds = append(cmds, doFetchNews(p.news, p.feedURLs))
 
 	case gotNewsMsg:
 		p = p.handleGotNews(msg)
@@ -124,9 +124,9 @@ func (p newsPane) handleKeyMsg(msg tea.KeyMsg) (newsPane, tea.Cmd) {
 			p.closePreview()
 		}
 	case "r":
-		if p.feedURL != "" {
+		if len(p.feedURLs) > 0 {
 			p.loading = true
-			cmds = append(cmds, doFetchNews(p.news, p.feedURL))
+			cmds = append(cmds, doFetchNews(p.news, p.feedURLs))
 		}
 	}
 
@@ -252,13 +252,24 @@ func formatNewsTitle(title string, selected, focused bool) string {
 	return "  " + title
 }
 
+// itemTitle returns the display title for an item, prefixed with the feed
+// host in square brackets when multiple feeds are configured. Truncated to
+// fit maxWidth in visual columns.
+func (p newsPane) itemTitle(item api.NewsItem, maxWidth int) string {
+	title := item.Title
+	if len(p.feedURLs) > 1 && item.FeedHost != "" {
+		title = fmt.Sprintf("[%s] %s", item.FeedHost, item.Title)
+	}
+	return truncate(title, maxWidth)
+}
+
 // renderList renders the full item list (title + age + blank line per item).
 func (p newsPane) renderList() string {
 	if p.width == 0 {
 		return ""
 	}
-	if p.feedURL == "" {
-		return dimStyle.Render("  No RSS feed configured.\n  Edit ~/.config/today-tui/config.json\n  to set rss_feed_url.")
+	if len(p.feedURLs) == 0 {
+		return dimStyle.Render("  No RSS feed configured.\n  Edit ~/.config/today-tui/config.json\n  to set rss_feed_urls.")
 	}
 	if p.loading {
 		return dimStyle.Render("  Fetching feed...")
@@ -273,7 +284,7 @@ func (p newsPane) renderList() string {
 	contentWidth := p.width - 6
 	var sb strings.Builder
 	for i, item := range p.items {
-		title := truncate(item.Title, contentWidth-2)
+		title := p.itemTitle(item, contentWidth-2)
 		ageStr := formatAge(time.Since(item.Published))
 		sb.WriteString(formatNewsTitle(title, i == p.selected, p.focused) + "\n")
 		sb.WriteString(dimStyle.Render(fmt.Sprintf("    %s", ageStr)) + "\n")
@@ -290,7 +301,7 @@ func (p newsPane) renderCompactList() string {
 	contentWidth := p.width - 6
 	var sb strings.Builder
 	for i, item := range p.items {
-		title := truncate(item.Title, contentWidth-2)
+		title := p.itemTitle(item, contentWidth-2)
 		sb.WriteString(formatNewsTitle(title, i == p.selected, p.focused) + "\n")
 	}
 	return sb.String()

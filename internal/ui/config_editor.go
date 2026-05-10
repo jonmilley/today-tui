@@ -115,7 +115,7 @@ func buildConfigFields() []field {
 		{kind: fieldText, label: "Weather city", key: keyWeatherCity},
 		{kind: fieldChoice, label: "Units", key: keyUnits, choices: []string{config.UnitsImperial, config.UnitsMetric}},
 		{kind: fieldList, label: "Stocks", key: keyStocks},
-		{kind: fieldText, label: "RSS feed URL", key: keyRSSURL},
+		{kind: fieldList, label: "RSS feeds", key: keyRSSURL},
 		{kind: fieldHeader, label: "Panels"},
 	}
 	for _, t := range panelToggles {
@@ -145,7 +145,7 @@ func getStringField(c *config.Config, key string) string {
 	case keyStocks:
 		return strings.Join(c.Stocks, ", ")
 	case keyRSSURL:
-		return c.RSSFeedURL
+		return strings.Join(c.RSSFeedURLs, ", ")
 	}
 	return ""
 }
@@ -172,8 +172,22 @@ func setStringField(c *config.Config, key, value string) {
 	case keyStocks:
 		c.Stocks = parseStocksList(value)
 	case keyRSSURL:
-		c.RSSFeedURL = strings.TrimSpace(value)
+		c.RSSFeedURLs = parseRSSList(value)
 	}
+}
+
+// parseRSSList splits a comma-separated URL list, trimming whitespace.
+// Empty entries are dropped. Case is preserved (URLs are case-sensitive).
+func parseRSSList(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // parseStocksList splits a comma-separated symbol list, trimming whitespace
